@@ -1,0 +1,88 @@
+import { useState } from 'react';
+import { HelpCircle, X } from 'lucide-react';
+
+interface TooltipContent {
+  what: string;
+  concept: string;
+}
+
+const TOOLTIPS: Record<string, TooltipContent> = {
+  provider: {
+    what: 'Defines which LLM to use — the endpoint URL, model name, and API key. Every pipeline needs one.',
+    concept: 'A Provider is the gateway to a foundation model (OpenAI, opencode, Anthropic, local Llama, etc.). It authenticates and routes requests to the right inference endpoint.',
+  },
+  chat: {
+    what: 'Sends prompts to the LLM and receives responses. Connect a Provider upstream to define which model to use.',
+    concept: 'The Chat node is the "brain" of your pipeline. It takes a system prompt (instructions for the AI) and user messages, sends them to the LLM, and returns the model\'s response.',
+  },
+  mcp: {
+    what: 'Connects to external tools via the Model Context Protocol. Discovers available tools and calls them.',
+    concept: 'MCP (Model Context Protocol) is a standard way for LLMs to use external tools. An MCP server advertises capabilities (web search, file ops, browser control) and the LLM can invoke them. Think of it as "USB-C for AI."',
+  },
+  observer: {
+    what: 'Captures every request and response flowing through the pipeline. Shows the raw data and equivalent curl command.',
+    concept: 'Observability is critical in agentic systems. The Observer lets you inspect exactly what was sent to each API and what came back — making the "magic" of LLM tool-use visible and debuggable.',
+  },
+  browser: {
+    what: 'Fetches web pages and extracts readable text. Optionally renders JavaScript for modern single-page apps.',
+    concept: 'Browser automation gives LLMs the ability to read web content, interact with pages, and extract data — a foundational capability for agentic systems that need to access live information.',
+  },
+  search: {
+    what: 'Searches the web using DuckDuckGo and returns ranked results with titles, URLs, and snippets.',
+    concept: 'Web search is the most common tool given to LLMs. It enables retrieval-augmented generation (RAG) by fetching current information from the internet, grounding the model\'s responses in real data.',
+  },
+  registry: {
+    what: 'Loads a JSON file defining custom tools. Each tool has a name, endpoint, method, and parameters. The registry is self-modifying — tools with write_allowed: true can update their own definitions.',
+    concept: 'A tool registry lets LLMs discover and use capabilities dynamically. Self-modification is the key insight behind autonomous agents: a system that can edit its own tool definitions can grow new abilities without human intervention.',
+  },
+};
+
+export default function NodeTooltip({ nodeType, compact = false }: { nodeType: string; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const tip = TOOLTIPS[nodeType];
+
+  if (!tip) return null;
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-gray-500 hover:text-gray-300 transition-colors"
+        title={`Learn about ${nodeType} nodes`}
+      >
+        <HelpCircle size={compact ? 13 : 15} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 top-full left-0 mt-2 w-72 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-4">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-gray-100 font-semibold text-xs uppercase tracking-wider">
+                {nodeType.charAt(0).toUpperCase() + nodeType.slice(1)} Node
+              </span>
+              <button onClick={() => setOpen(false)} className="text-gray-600 hover:text-gray-400">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold block mb-0.5">
+                  What it does
+                </span>
+                <p className="text-gray-300 text-xs leading-relaxed">{tip.what}</p>
+              </div>
+              <div className="border-t border-gray-800 pt-2">
+                <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold block mb-0.5">
+                  Concept
+                </span>
+                <p className="text-gray-400 text-xs leading-relaxed">{tip.concept}</p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,53 @@
+{
+  "$schema-version": "1.0.0",
+  "meta": {
+    "name": "Default Workshop Tools",
+    "description": "Example tools for the agentic pipeline builder workshop. Includes A2UI interactive tools."
+  },
+  "tools": [
+    {
+      "name": "a2ui_hello",
+      "description": "Returns an interactive A2UI card with a greeting message. Demonstrates how MCP tools can return rendered HTML UIs.",
+      "endpoint": "/api/a2ui/hello",
+      "method": "GET",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Your name", "default": "World" }
+        },
+        "required": []
+      },
+      "write_allowed": false
+    },
+    {
+      "name": "web_search",
+      "description": "Search the web using DuckDuckGo. Returns ranked results with titles and snippets.",
+      "endpoint": "/api/search",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "The search query" },
+          "count": { "type": "number", "description": "Number of results (max 10)", "default": 5 }
+        },
+        "required": ["query"]
+      },
+      "write_allowed": false
+    },
+    {
+      "name": "fetch_page",
+      "description": "Fetch a web page and extract its readable text content.",
+      "endpoint": "/api/browser/fetch",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "description": "The URL to fetch" },
+          "render_js": { "type": "boolean", "description": "Render JavaScript (requires Playwright)", "default": false }
+        },
+        "required": ["url"]
+      },
+      "write_allowed": false
+    }
+  ]
+}

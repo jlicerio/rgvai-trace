@@ -1,0 +1,44 @@
+services:
+  trace:
+    build: .
+    container_name: trace
+    restart: unless-stopped
+    expose:
+      - 8083
+    environment:
+      - FRONTEND_DIST=/app/frontend/dist
+      - TOOL_REGISTRY_PATH=/app/app/registry.json
+      - SECRET_KEY=change_me_in_production
+    volumes:
+      - trace_data:/data
+
+  nginx:
+    image: nginx:alpine
+    container_name: trace-nginx
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8084:80
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - trace
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: trace-ts
+    hostname: rgvai-trace
+    restart: unless-stopped
+    environment:
+      - TS_AUTH_KEY=set_me_in_env
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - ts_state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+
+volumes:
+  trace_data:
+  ts_state:

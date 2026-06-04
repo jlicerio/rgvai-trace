@@ -1,0 +1,19 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "trace.rgvaicoalition.ts.net:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://trace:8083"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "trace.rgvaicoalition.ts.net:443": false
+  }
+}

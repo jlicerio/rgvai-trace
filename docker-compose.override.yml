@@ -1,0 +1,4 @@
+services:
+  trace:
+    environment:
+      - FRONTEND_DIST=/app/frontend/dist
