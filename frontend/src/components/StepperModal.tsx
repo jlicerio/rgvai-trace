@@ -51,7 +51,7 @@ export default function StepperModal({
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <StepForward size={16} className="text-indigo-400" />
+              <StepForward size={16} className="text-gray-400" />
               <span className="text-gray-100 text-sm font-semibold">
                 Step Through Execution
               </span>
@@ -76,7 +76,7 @@ export default function StepperModal({
             <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
               Node Type:
             </span>
-            <span className="text-xs font-mono bg-gray-800 text-indigo-300 px-2 py-0.5 rounded border border-gray-700 uppercase">
+            <span className="text-xs font-mono bg-gray-800 text-gray-300 px-2 py-0.5 rounded border border-gray-700 uppercase">
               {stepResult.nodeType}
             </span>
             <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -130,7 +130,7 @@ export default function StepperModal({
             className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
               loading
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-500 active:bg-indigo-400 shadow-md hover:shadow-lg'
+                : 'bg-gray-600 text-white hover:bg-gray-500 active:bg-gray-400 shadow-md hover:shadow-lg'
             }`}
           >
             {loading ? (

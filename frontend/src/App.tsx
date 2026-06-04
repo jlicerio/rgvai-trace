@@ -883,7 +883,7 @@ function AppInner() {
             Trace
           </h1>
           <span className="text-gray-700 text-xs">|</span>
-          <span className="text-gray-600 text-xs font-semibold text-indigo-400">Learn LLMs · Tools · MCP</span>
+          <span className="text-gray-400 text-xs font-semibold">Learn LLMs · Tools · MCP</span>
         </div>
 
         <div className="flex items-center gap-2">

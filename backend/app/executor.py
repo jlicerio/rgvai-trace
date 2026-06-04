@@ -25,6 +25,9 @@ from app.curl_gen import generate_curl
 BLOCKED_PRIVATE_IPS = {"127.0.0.1", "0.0.0.0", "localhost", "::1", "169.254.169.254"}
 BLOCKED_CIDR = [r"^10\.", r"^172\.(1[6-9]|2\d|3[01])\.", r"^192\.168\."]
 
+# Maximum number of tool-calling iterations to prevent infinite loops
+MAX_TOOL_CALL_ITERATIONS = 10
+
 
 def _validate_endpoint_url(url: str) -> bool:
     """Block SSRF: reject private/internal IP ranges."""
@@ -120,7 +123,9 @@ async def execute_pipeline(
         if node.type == NodeType.PROVIDER:
             result = _handle_provider(node)
         elif node.type == NodeType.CHAT:
-            result = await _handle_chat(node, provider, auth_header)
+            result = await _handle_chat(
+                node, provider, auth_header, pipeline.edges, node_map
+            )
         elif node.type == NodeType.MCP:
             result = await _handle_mcp(node, provider, auth_header, results)
         elif node.type == NodeType.OBSERVER:
@@ -219,6 +224,82 @@ def _find_upstream_provider(
     return None
 
 
+def _find_upstream_mcp_nodes(
+    node_id: str,
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
+) -> list[PipelineNode]:
+    """Walk upstream through edges to find MCP nodes connected to the given node."""
+    # Build reverse adjacency (child → parents)
+    reverse_adj: dict[str, list[str]] = {}
+    for edge in edges:
+        reverse_adj.setdefault(edge.target, []).append(edge.source)
+
+    visited: set[str] = set()
+    queue = [node_id]
+    mcp_nodes: list[PipelineNode] = []
+
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        node = node_map.get(current)
+        if node and node.type == NodeType.MCP:
+            mcp_nodes.append(node)
+        for parent in reverse_adj.get(current, []):
+            if parent not in visited:
+                queue.append(parent)
+
+    return mcp_nodes
+
+
+def _collect_mcp_tools(mcp_nodes: list[PipelineNode]) -> list[dict]:
+    """Collect tool definitions from MCP nodes into OpenAI tool-calling format.
+
+    Each MCP node's config has ``discoveredTools`` — a list of dicts with
+    ``name``, ``description``, and ``inputSchema`` keys (set by the frontend
+    after calling the MCP server's list-tools endpoint).
+
+    Returns:
+        List of OpenAI-compatible tool definitions, or empty list if none found.
+    """
+    tools: list[dict] = []
+    for mcp_node in mcp_nodes:
+        config = mcp_node.data.config
+        discovered = config.get("discoveredTools", [])
+        if not discovered:
+            continue
+        for tool in discovered:
+            if not isinstance(tool, dict):
+                continue
+            tool_name = tool.get("name", "")
+            if not tool_name:
+                continue
+            tools.append({
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("inputSchema", {}),
+                },
+            })
+    return tools
+
+
+def _find_mcp_node_for_tool(
+    mcp_nodes: list[PipelineNode],
+    tool_name: str,
+) -> Optional[PipelineNode]:
+    """Find the MCP node whose ``discoveredTools`` includes *tool_name*."""
+    for node in mcp_nodes:
+        discovered = node.data.config.get("discoveredTools", [])
+        for tool in discovered:
+            if isinstance(tool, dict) and tool.get("name") == tool_name:
+                return node
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Node-type handlers
 # ---------------------------------------------------------------------------
@@ -245,12 +326,17 @@ async def _handle_chat(
     node: PipelineNode,
     provider: Optional[PipelineNode],
     auth_header: Optional[str],
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
 ) -> ExecutionStepResult:
     """
-    Call the LLM provider for a chat node.
+    Call the LLM provider for a chat node with optional MCP tool support.
 
     Builds an OpenAI-compatible chat completions request from the node's
-    config and forwards the Authorization header.
+    config and forwards the Authorization header.  If MCP nodes are
+    connected upstream, their tool definitions are included in the request
+    and the LLM can call them in a tool-calling loop (capped at
+    ``MAX_TOOL_CALL_ITERATIONS`` rounds).
     """
     config = node.data.config
 
@@ -307,10 +393,22 @@ async def _handle_chat(
         "max_tokens": max_tokens,
     }
 
-    # Additional params from config (e.g. tools, response_format)
-    for key in ("tools", "tool_choice", "response_format", "stop", "top_p"):
+    # Find upstream MCP tools and include them in the request
+    mcp_nodes = _find_upstream_mcp_nodes(node.id, edges, node_map)
+    mcp_tools = _collect_mcp_tools(mcp_nodes)
+    if mcp_tools:
+        body["tools"] = mcp_tools
+
+    # Additional params from config (e.g. response_format, stop, top_p)
+    # Note: "tools" and "tool_choice" come from discovered MCP tools above,
+    # not from the static config (which may have stale values).
+    for key in ("response_format", "stop", "top_p"):
         if key in config:
             body[key] = config[key]
+    # Allow explicit tool_choice from config if present (e.g. "auto", "none",
+    # or a specific tool name)
+    if "tool_choice" in config:
+        body["tool_choice"] = config["tool_choice"]
 
     headers: dict[str, str] = {
         "Content-Type": "application/json",
@@ -321,11 +419,117 @@ async def _handle_chat(
 
     curl = generate_curl("POST", url, headers, body)
 
+    # Track tool-call history for the result
+    tool_call_records: list[dict] = []
+
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(url, json=body, headers=headers)
             resp.raise_for_status()
             response_data = resp.json()
+
+            # -----------------------------------------------------------------
+            # Tool-calling loop
+            # -----------------------------------------------------------------
+            tool_call_count = 0
+            while tool_call_count < MAX_TOOL_CALL_ITERATIONS:
+                choice = response_data.get("choices", [{}])[0]
+                message = choice.get("message", {})
+                tool_calls = message.get("tool_calls")
+
+                if not tool_calls:
+                    break
+
+                # Record this round for the result
+                record = {
+                    "assistant_message": {
+                        "role": "assistant",
+                        "content": message.get("content"),
+                        "tool_calls": tool_calls,
+                    },
+                    "results": [],
+                }
+                tool_call_records.append(record)
+
+                # Append the assistant message with tool_calls to the history
+                messages.append({
+                    "role": "assistant",
+                    "content": message.get("content") or None,
+                    "tool_calls": tool_calls,
+                })
+
+                # Process each tool call
+                for tc in tool_calls:
+                    func_name = tc["function"]["name"]
+                    try:
+                        arguments = json.loads(tc["function"]["arguments"])
+                    except (json.JSONDecodeError, KeyError):
+                        arguments = {}
+
+                    # Find which MCP node provides this tool
+                    mcp_node = _find_mcp_node_for_tool(mcp_nodes, func_name)
+
+                    if mcp_node is None:
+                        result_content = json.dumps(
+                            {"error": f"Unknown tool: {func_name}"}
+                        )
+                    else:
+                        server_url = mcp_node.data.config.get("serverUrl", "")
+                        if not server_url:
+                            result_content = json.dumps(
+                                {
+                                    "error": f"No server URL configured for tool: {func_name}"
+                                }
+                            )
+                        else:
+                            try:
+                                from app.mcp_client import call_tool
+
+                                tool_result = await call_tool(
+                                    server_url,
+                                    func_name,
+                                    arguments,
+                                    headers=headers,
+                                )
+                                result_content = json.dumps(tool_result)
+                            except Exception as exc:
+                                result_content = json.dumps(
+                                    {"error": str(exc)}
+                                )
+
+                    # Append the tool result as a new message
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result_content,
+                    })
+
+                    record["results"].append({
+                        "tool_call_id": tc["id"],
+                        "tool_name": func_name,
+                        "arguments": arguments,
+                        "result": result_content,
+                    })
+
+                tool_call_count += 1
+                body["messages"] = messages
+
+                # Call the LLM again with the updated conversation
+                resp = await client.post(url, json=body, headers=headers)
+                resp.raise_for_status()
+                response_data = resp.json()
+
+            if tool_call_count >= MAX_TOOL_CALL_ITERATIONS:
+                # Append a warning to the final message
+                warning = (
+                    "\n\n[Tool-calling loop reached maximum iterations "
+                    f"({MAX_TOOL_CALL_ITERATIONS})]"
+                )
+                if response_data.get("choices"):
+                    msg = response_data["choices"][0].get("message", {})
+                    existing = msg.get("content") or ""
+                    msg["content"] = existing + warning
+
     except httpx.HTTPError as exc:
         return ExecutionStepResult(
             stepId=node.id,
@@ -342,6 +546,7 @@ async def _handle_chat(
         curl=curl,
         request={"url": url, "headers": _safe_headers(headers), "body": body},
         response=response_data,
+        tool_calls=tool_call_records if tool_call_records else None,
     )
 
 

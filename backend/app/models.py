@@ -56,6 +56,7 @@ class ExecutionStepResult(BaseModel):
     request: dict = {}
     response: dict = {}
     error: Optional[str] = None
+    tool_calls: Optional[list[dict]] = None
 
 
 class CurlRequest(BaseModel):

@@ -40,19 +40,19 @@ export default function ProgressionSidebar({
     <div className="flex flex-col h-full bg-gray-900 border-r border-gray-800 w-64 shrink-0 text-gray-200">
       {/* Current Rank Badge */}
       <div className="p-4 border-b border-gray-800 bg-gray-950/40 flex flex-col items-center text-center">
-        <Award size={36} className="text-amber-400 mb-2 animate-bounce" />
+        <Award size={36} className="text-gray-400 mb-2 animate-bounce" />
         <span className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase">Active Achievement</span>
         <h3 className="text-sm font-bold text-gray-200">
           {PHASES.find((p) => p.level === currentPhase)?.title || 'Prompt Engineer'}
         </h3>
-        <p className="text-[11px] text-amber-500/80 mt-1">Phase {currentPhase} of 5 Unlocked</p>
+        <p className="text-[11px] text-gray-400 mt-1">Phase {currentPhase} of 5 Unlocked</p>
 
         {earnedBadges.length > 0 && (
           <div className="flex flex-wrap justify-center gap-1.5 mt-3">
             {earnedBadges.map((badge) => (
               <span
                 key={badge}
-                className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gray-800 text-gray-400 border border-gray-700"
               >
                 🏅 {badge}
               </span>
@@ -97,7 +97,7 @@ export default function ProgressionSidebar({
                       >
                         <span className="truncate pr-2">{lesson.title}</span>
                         {isCompleted ? (
-                          <CheckCircle size={12} className="text-green-500 shrink-0" />
+                          <CheckCircle size={12} className="text-gray-500 shrink-0" />
                         ) : (
                           <Circle size={12} className="text-gray-600 shrink-0" />
                         )}
@@ -141,7 +141,7 @@ export default function ProgressionSidebar({
                   return (
                     <div key={obj.id} className="flex items-start gap-2 text-xs">
                       {isDone ? (
-                        <CheckCircle size={14} className="text-green-500 mt-0.5 shrink-0" />
+                        <CheckCircle size={14} className="text-gray-500 mt-0.5 shrink-0" />
                       ) : (
                         <Circle size={14} className="text-gray-500 mt-0.5 shrink-0" />
                       )}
@@ -158,13 +158,13 @@ export default function ProgressionSidebar({
             <div>
               <button
                 onClick={() => setShowHint(!showHint)}
-                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 focus:outline-none"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 focus:outline-none"
               >
                 <HelpCircle size={13} />
                 {showHint ? 'Hide Hint' : 'Show Hint'}
               </button>
               {showHint && (
-                <div className="mt-2 bg-indigo-950/40 border border-indigo-900/60 rounded p-2.5 text-xs text-indigo-200 leading-relaxed font-mono">
+                <div className="mt-2 bg-gray-950/40 border border-gray-700 rounded p-2.5 text-xs text-gray-200 leading-relaxed font-mono">
                   {activeLesson.hints[0]}
                 </div>
               )}

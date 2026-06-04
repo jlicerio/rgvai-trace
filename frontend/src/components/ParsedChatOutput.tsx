@@ -42,8 +42,8 @@ export default function ParsedChatOutput({ message }: { message: ParsedMessage }
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {message.toolCalls.map((tc, i) => (
-            <div key={i} className="bg-amber-950/20 border border-amber-700/30 rounded-lg p-2.5">
-              <div className="flex items-center gap-1.5 text-amber-400 text-xs font-semibold mb-1">
+            <div key={i} className="bg-gray-800 border border-gray-700 rounded-lg p-2.5">
+              <div className="flex items-center gap-1.5 text-gray-400 text-xs font-semibold mb-1">
                 <Terminal size={12} />
                 Invoke Tool: {tc.name}
               </div>
@@ -66,12 +66,12 @@ export default function ParsedChatOutput({ message }: { message: ParsedMessage }
               tr.result.includes('"name":"McpApp"')
             );
             return (
-              <div key={i} className="bg-indigo-950/20 border border-indigo-700/30 rounded-lg p-2.5">
-                <div className="flex items-center gap-1.5 text-indigo-400 text-xs font-semibold mb-1">
+              <div key={i} className="bg-gray-800 border border-gray-700 rounded-lg p-2.5">
+                <div className="flex items-center gap-1.5 text-gray-400 text-xs font-semibold mb-1">
                   <FileText size={12} />
                   {tr.tool}
                   {isA2UI && (
-                    <span className="ml-auto text-[10px] bg-indigo-900/50 text-indigo-300 px-1.5 py-0.5 rounded font-mono">
+                    <span className="ml-auto text-[10px] bg-gray-900 text-gray-300 px-1.5 py-0.5 rounded font-mono">
                       A2UI
                     </span>
                   )}
@@ -144,9 +144,9 @@ ${html}
 </html>`;
 
   return (
-    <div className="border border-indigo-800/40 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-2 py-1 bg-indigo-950/30 border-b border-indigo-800/40">
-        <span className="text-indigo-400 text-[10px] font-mono">A2UI Sandbox</span>
+    <div className="border border-gray-700 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-2 py-1 bg-gray-900/50 border-b border-gray-700">
+        <span className="text-gray-400 text-[10px] font-mono">A2UI Sandbox</span>
         <span className="text-gray-600 text-[9px]">sandboxed · no cookies</span>
       </div>
       <iframe
