@@ -3,8 +3,8 @@ services:
     build: .
     container_name: trace
     restart: unless-stopped
-    expose:
-      - 8083
+    ports:
+      - "127.0.0.1:8083:8083"
     environment:
       - FRONTEND_DIST=/app/frontend/dist
       - TOOL_REGISTRY_PATH=/app/app/registry.json
@@ -26,7 +26,7 @@ services:
   tailscale:
     image: tailscale/tailscale:latest
     container_name: trace-ts
-    hostname: rgvai-trace
+    hostname: rgvai
     restart: unless-stopped
     environment:
       - TS_AUTH_KEY=set_me_in_env
