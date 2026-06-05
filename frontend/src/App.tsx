@@ -61,7 +61,7 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode; ord
   { type: 'browser', label: 'Browser', icon: <Globe size={14} />, order: 'tool' },
   { type: 'search', label: 'Search', icon: <SearchIcon size={14} />, order: 'tool' },
   { type: 'memory', label: 'Memory', icon: <Database size={14} />, order: 'tool' },
-  { type: 'context', label: 'Context', icon: <FileText size={14} />, order: 'tool' },
+  { type: 'context', label: 'Context', icon: <FileText size={14} />, order: 'prep' },
   { type: 'thread', label: 'Thread', icon: <GitBranch size={14} />, order: 'flow' },
   { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} />, order: 'tool' },
   { type: 'subagent', label: 'Subagent', icon: <Bot size={14} />, order: 'tool' },
@@ -1255,6 +1255,7 @@ function AppInner() {
                         item.order === '1st' ? 'bg-gray-700 text-gray-300' :
                         item.order === '2nd' ? 'bg-gray-700 text-gray-300' :
                         item.order === 'last' ? 'bg-gray-700 text-gray-300' :
+                        item.order === 'prep' ? 'bg-gray-700 text-gray-300' :
                         'bg-gray-800 text-gray-500'
                       }`}>
                         {item.order}
@@ -1265,6 +1266,7 @@ function AppInner() {
               </div>
               <div className="p-3 border-t border-gray-800 text-gray-600 text-xs space-y-1">
                 <p>Drag nodes onto canvas, connect <span className="text-gray-500">●</span> → <span className="text-gray-300">○</span></p>
+                <p>Context before Chat injects background info into prompts</p>
                 <p>Data flows top (input) → bottom (output)</p>
                 <p>Backspace to delete</p>
               </div>

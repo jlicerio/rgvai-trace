@@ -399,6 +399,114 @@ def _find_connected_tool_nodes(
     return tool_nodes
 
 
+def _find_upstream_context_nodes(
+    node_id: str,
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
+) -> list[PipelineNode]:
+    """Walk upstream edges (source → target) to find connected Context nodes.
+
+    Only walks incoming edges (target == node_id) so only nodes whose
+    output flows *into* this Chat node are included.
+    """
+    # Build reverse adjacency (target → list[sources])
+    upstream_adj: dict[str, list[str]] = {}
+    for edge in edges:
+        upstream_adj.setdefault(edge.target, []).append(edge.source)
+
+    visited: set[str] = set()
+    queue = [node_id]
+    context_nodes: list[PipelineNode] = []
+
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        node = node_map.get(current)
+        if node and node.type == NodeType.CONTEXT:
+            context_nodes.append(node)
+        for parent in upstream_adj.get(current, []):
+            if parent not in visited:
+                queue.append(parent)
+
+    return context_nodes
+
+
+def _inject_context_content(
+    messages: list[dict],
+    context_nodes: list[PipelineNode],
+) -> list[dict]:
+    """Inject content from upstream Context nodes into the messages array.
+
+    Each Context node's config includes:
+      - ``content`` — the text to inject
+      - ``enabled`` — toggle (default True)
+      - ``position`` — ``prepend_system`` (default) or ``append_user``
+
+    ``prepend_system``: prepend context to the existing system message,
+    or create one if none exists.
+
+    ``append_user``: append context to the last user message, or add a
+    new user message if none exists.
+    """
+    if not context_nodes:
+        return messages
+
+    # Separate context by position
+    system_contexts: list[str] = []
+    user_contexts: list[str] = []
+
+    for ctx in context_nodes:
+        cfg = ctx.data.config
+        if not cfg.get("enabled", True):
+            continue
+        content = (cfg.get("content") or "").strip()
+        if not content:
+            continue
+        position = cfg.get("position", "prepend_system")
+        if position == "prepend_system":
+            system_contexts.append(content)
+        else:
+            user_contexts.append(content)
+
+    result = list(messages)
+
+    # Inject system contexts
+    if system_contexts:
+        joined = "\n\n".join(system_contexts)
+        # Find existing system message
+        sys_idx = None
+        for i, m in enumerate(result):
+            if m.get("role") == "system":
+                sys_idx = i
+                break
+        if sys_idx is not None:
+            # Prepend to existing system content
+            existing = result[sys_idx].get("content", "")
+            result[sys_idx]["content"] = joined + "\n\n" + existing
+        else:
+            # Insert new system message at the front
+            result.insert(0, {"role": "system", "content": joined})
+
+    # Inject user contexts — append to last user message or create one
+    if user_contexts:
+        joined = "\n\n".join(user_contexts)
+        # Find the last user message
+        last_user_idx = None
+        for i in range(len(result) - 1, -1, -1):
+            if result[i].get("role") == "user":
+                last_user_idx = i
+                break
+        if last_user_idx is not None:
+            existing = result[last_user_idx].get("content", "")
+            result[last_user_idx]["content"] = existing + "\n\n" + joined
+        else:
+            result.append({"role": "user", "content": joined})
+
+    return result
+
+
 BUILTIN_TOOL_DEFINITIONS: dict[str, dict] = {
     "browser_fetch": {
         "type": "function",
@@ -544,6 +652,10 @@ async def _handle_chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+
+    # Find upstream Context nodes and inject their content into messages
+    context_nodes = _find_upstream_context_nodes(node.id, edges, node_map)
+    messages = _inject_context_content(messages, context_nodes)
 
     # Find upstream MCP tools and include them in the request
     mcp_nodes = _find_upstream_mcp_nodes(node.id, edges, node_map)
