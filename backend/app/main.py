@@ -357,6 +357,46 @@ async def mcp_list_tools_endpoint(raw_request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Subagent role endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/subagent/roles")
+async def subagent_roles_list():
+    """List all available subagent roles (preset + custom)."""
+    from app.executor import IN_MEMORY_SUBAGENT_ROLES
+    roles = [
+        {"name": r["name"], "systemPrompt": r["systemPrompt"], "maxIterations": r["maxIterations"],
+         "allowedMcpTools": r.get("allowedMcpTools", []), "enabledSkills": r.get("enabledSkills", [])}
+        for r in IN_MEMORY_SUBAGENT_ROLES.values()
+    ]
+    return {"roles": roles}
+
+
+@app.post("/api/subagent/roles")
+async def subagent_roles_create(raw_request: Request):
+    """Register a new custom subagent role."""
+    from app.executor import IN_MEMORY_SUBAGENT_ROLES
+    try:
+        body = await raw_request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body must be valid JSON")
+    
+    name = body.get("name", "")
+    if not name:
+        raise HTTPException(status_code=400, detail="'name' is required")
+    
+    IN_MEMORY_SUBAGENT_ROLES[name] = {
+        "name": name,
+        "systemPrompt": body.get("systemPrompt", "You are a helpful AI agent."),
+        "maxIterations": body.get("maxIterations", 5),
+        "allowedMcpTools": body.get("allowedMcpTools", []),
+        "enabledSkills": body.get("enabledSkills", []),
+    }
+    return {"status": "created", "role": IN_MEMORY_SUBAGENT_ROLES[name]}
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 

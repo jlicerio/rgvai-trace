@@ -34,6 +34,8 @@ import {
   GitBranch,
   Terminal,
   Zap,
+  Bot,
+  Code2,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -47,6 +49,7 @@ import { LESSONS, type Lesson } from './constants/lessons';
 import AuthModal from './components/AuthModal';
 import StepperModal from './components/StepperModal';
 import LearnModal from './components/LearnModal';
+import CodeSandboxWorkspace from './components/CodeSandboxWorkspace';
 import type { ExecutionStepResult, NodeType } from './types/pipeline';
 import type { ParsedMessage } from './components/ParsedChatOutput';
 
@@ -61,6 +64,8 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode }[] 
   { type: 'context', label: 'Context', icon: <FileText size={14} /> },
   { type: 'thread', label: 'Thread', icon: <GitBranch size={14} /> },
   { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} /> },
+  { type: 'subagent', label: 'Subagent', icon: <Bot size={14} /> },
+  { type: 'code_sandbox', label: 'Code', icon: <Code2 size={14} /> },
   { type: 'mcp', label: 'MCP', icon: <Wrench size={14} /> },
   { type: 'registry', label: 'Registry', icon: <FileJson size={14} /> },
   { type: 'observer', label: 'Observer', icon: <Eye size={14} /> },
@@ -145,6 +150,31 @@ function getDefaultData(type: NodeType) {
         type: 'skill',
         config: { label: 'Env Skills', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'] },
       };
+    case 'subagent':
+      return {
+        label: 'Subagent',
+        type: 'subagent',
+        config: {
+          label: 'Subagent',
+          roleName: 'Code Writer',
+          customRole: null,
+          task: '',
+          temperature: 0.7,
+        },
+      };
+    case 'code_sandbox':
+      return {
+        label: 'Code',
+        type: 'code_sandbox',
+        config: {
+          label: 'Code',
+          language: 'python',
+          activeFile: 'main.py',
+          files: {
+            'main.py': '# Write Python code here\nprint("Hello, Trace!")',
+          },
+        },
+      };
   }
 }
 
@@ -197,6 +227,7 @@ function AppInner() {
   const [stepperLoading, setStepperLoading] = useState(false);
   const stepOrderRef = useRef<string[]>([]);
   const [showLearn, setShowLearn] = useState(false);
+  const [activeCodeSandboxId, setActiveCodeSandboxId] = useState<string | null>(null);
 
   // Check auth on mount
   useEffect(() => {
@@ -335,6 +366,10 @@ function AppInner() {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', mode: 'parallel', branchResults: [{ branchId: 'b1', result: 'Branch 1 complete' }] };
           } else if (node.type === 'skill') {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'], count: 10 };
+          } else if (node.type === 'subagent') {
+            response = activeLesson?.sandboxData?.mockResponse || { status: 'success', role: 'Code Writer', content: 'Subagent sandbox mock: task complete.', tool_calls_made: 2, skills_used: ['python', 'shell'] };
+          } else if (node.type === 'code_sandbox') {
+            response = { status: 'workspace_ready', language: 'python', fileCount: 1, activeFile: 'main.py', note: 'Code execution happens in-browser via Pyodide WASM.' };
           } else {
             response = { status: 'success' };
           }
@@ -475,6 +510,10 @@ function AppInner() {
           };
         } else if (nodeType === 'skill') {
           response = activeLesson?.sandboxData?.mockResponse || { status: 'success', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'], count: 10 };
+        } else if (nodeType === 'subagent') {
+          response = activeLesson?.sandboxData?.mockResponse || { status: 'success', role: 'Code Writer', content: 'Subagent sandbox mock: task complete.', tool_calls_made: 2, skills_used: ['python', 'shell'] };
+        } else if (nodeType === 'code_sandbox') {
+          response = { status: 'workspace_ready', language: 'python', fileCount: 1, activeFile: 'main.py', note: 'Code execution happens in-browser via Pyodide WASM.' };
         } else {
           response = { status: 'success' };
         }
@@ -881,6 +920,15 @@ function AppInner() {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
+  const onNodeClick = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      if (node.data?.type === 'code_sandbox') {
+        setActiveCodeSandboxId(node.id);
+      }
+    },
+    [setActiveCodeSandboxId]
+  );
+
   // Clear canvas
   const handleClear = useCallback(() => {
     setNodes([]);
@@ -1150,6 +1198,7 @@ function AppInner() {
             onConnect={onConnect}
             onDrop={onDrop}
             onDragOver={onDragOver}
+            onNodeClick={onNodeClick}
           >
             {/* Execution error toast */}
             {execError && (
@@ -1280,6 +1329,27 @@ function AppInner() {
         loading={stepperLoading}
       />
       <LearnModal open={showLearn} onClose={() => setShowLearn(false)} />
+      
+      {/* Code Sandbox Workspace */}
+      {activeCodeSandboxId && (() => {
+        const sandboxNode = nodes.find((n) => n.id === activeCodeSandboxId);
+        if (!sandboxNode) return null;
+        return (
+          <CodeSandboxWorkspace
+            config={(sandboxNode.data as any).config || {}}
+            onConfigChange={(newConfig) => {
+              setNodes((nds) =>
+                nds.map((n) =>
+                  n.id === activeCodeSandboxId
+                    ? { ...n, data: { ...n.data, config: newConfig } }
+                    : n
+                )
+              );
+            }}
+            onClose={() => setActiveCodeSandboxId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

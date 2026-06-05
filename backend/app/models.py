@@ -14,6 +14,8 @@ class NodeType(str, Enum):
     CONTEXT = "context"
     THREAD = "thread"
     SKILL = "skill"
+    CODE_SANDBOX = "code_sandbox"
+    SUBAGENT = "subagent"
 
 
 class Position(BaseModel):
@@ -40,6 +42,14 @@ class PipelineNode(BaseModel):
     type: NodeType
     position: Position
     data: NodeData
+
+
+class SubagentRole(BaseModel):
+    name: str
+    systemPrompt: str = "You are a helpful AI agent."
+    maxIterations: int = 5
+    allowedMcpTools: list[str] = []
+    enabledSkills: list[str] = []
 
 
 class PipelineGraph(BaseModel):

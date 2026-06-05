@@ -51,6 +51,14 @@ const TOOLTIPS: Record<string, TooltipContent> = {
     what: 'Defines which environment tools and capabilities the agent has access to — shell, git, docker, Python, curl, and more. Toggle skills on/off to control the agent environment.',
     concept: 'Environment skills tell the LLM what tools are available in its execution environment. By explicitly defining the available skills, the agent can choose the right tool for each task — just like a human developer knowing what commands are available in their terminal.',
   },
+  code_sandbox: {
+    what: 'An in-browser code editor and Python executor. Write and run Python code directly in the browser using Pyodide (Python compiled to WebAssembly).',
+    concept: 'Code Sandbox brings a full Python runtime into the browser via WebAssembly. It uses Pyodide to execute Python code client-side, with file system isolation and stdout/stderr capture. No server-side execution needed — the code runs entirely in your browser via a Web Worker.',
+  },
+  subagent: {
+    what: 'Spawns an autonomous child agent with its own role, tools, and skills. Configure the agent role, system prompt, task, and max tool-calling iterations.',
+    concept: 'Subagent nodes enable hierarchical agent architectures. A parent pipeline can delegate complex subtasks to specialized child agents that each have their own system prompt, tool access, and environment skills — mirroring how human teams divide labor among specialists.',
+  },
 };
 
 export default function NodeTooltip({ nodeType, compact = false }: { nodeType: string; compact?: boolean }) {

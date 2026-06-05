@@ -665,5 +665,80 @@ export const LESSONS: Lesson[] = [
         ]
       }
     }
+  },
+  {
+    id: 'lesson-10-subagent',
+    phase: 5,
+    title: 'Autonomous Subagent',
+    description: 'Unlock Subagent. Deploy a specialized child agent with its own role, system prompt, and tool access — enabling hierarchical multi-agent architectures.',
+    difficulty: 'Advanced',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'subagent-1',
+          type: 'subagent',
+          position: { x: 300, y: 200 },
+          data: {
+            label: 'Code Agent',
+            type: 'subagent',
+            config: { label: 'Code Agent', roleName: 'Code Writer', customRole: null, task: 'Write a Python script that prints hello world', temperature: 0.7 }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 580, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'subagent-1' },
+        { id: 'e2', source: 'subagent-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-subagent', text: 'Add a Subagent Node to the canvas.', type: 'node_exists', targetType: 'subagent' },
+      { id: 'connect-subagent', text: 'Connect Provider to Subagent, Subagent to Observer.', type: 'edge_exists', sourceType: 'subagent', targetType: 'observer' },
+      { id: 'run-success', text: 'Run the pipeline and observe the subagent executing autonomously.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag the new "Subagent" node from the sidebar onto the canvas — it has a dropdown to select the agent role.',
+      'Connect Provider → Subagent → Observer to let the subagent make LLM calls and capture its output.',
+      'Select a role like "Code Writer" (for code generation) or "Shell Operator" (for command-line tasks).',
+      'Click the Customize toggle to set a custom system prompt, adjust max iterations, or provide a specific task.',
+      'Press Run to see the subagent autonomously execute its task, calling tools and iterating until completion.'
+    ],
+    sandboxData: {
+      expectedInput: 'subagent',
+      mockResponse: {
+        status: 'success',
+        role: 'Code Writer',
+        content: 'Subagent task complete. Generated a Python script with proper documentation and error handling.',
+        tool_calls_made: 3,
+        skills_used: ['python', 'shell'],
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Subagent task complete. Generated a Python script with proper documentation and error handling.'
+            }
+          }
+        ]
+      }
+    }
   }
 ];

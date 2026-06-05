@@ -22,6 +22,8 @@ import MemoryNode from './nodes/MemoryNode';
 import ContextNode from './nodes/ContextNode';
 import ThreadNode from './nodes/ThreadNode';
 import SkillNode from './nodes/SkillNode';
+import CodeSandboxNode from './nodes/CodeSandboxNode';
+import SubagentNode from './nodes/SubagentNode';
 
 const nodeTypes = {
   provider: ProviderNode,
@@ -35,6 +37,8 @@ const nodeTypes = {
   context: ContextNode,
   thread: ThreadNode,
   skill: SkillNode,
+  subagent: SubagentNode,
+  code_sandbox: CodeSandboxNode,
 };
 
 interface PipelineCanvasProps {
@@ -45,6 +49,7 @@ interface PipelineCanvasProps {
   onConnect: (connection: Connection) => void;
   onDrop?: (event: React.DragEvent) => void;
   onDragOver?: (event: React.DragEvent) => void;
+  onNodeClick?: (event: React.MouseEvent, node: Node) => void;
   children?: React.ReactNode;
 }
 
@@ -56,6 +61,7 @@ export default function PipelineCanvas({
   onConnect,
   onDrop,
   onDragOver,
+  onNodeClick,
   children,
 }: PipelineCanvasProps) {
   const handleDrop = useCallback(
@@ -86,6 +92,7 @@ export default function PipelineCanvas({
         nodeTypes={nodeTypes}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onNodeClick={onNodeClick}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         minZoom={0.1}

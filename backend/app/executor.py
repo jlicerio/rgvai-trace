@@ -14,7 +14,9 @@ Supported node types:
   * **context** — injects context text into downstream Chat nodes
   * **thread** — collects results from downstream nodes (parallel/sequential)
   * **skill** — returns available environment skills as context
+  * **subagent** — spawns an autonomous child agent with its own role, tools, and skills
   * **observer** — captures request/response from preceding nodes
+  * **code_sandbox** — in-browser code editor/executor via Pyodide (WASM)
 """
 import asyncio
 import json
@@ -121,7 +123,7 @@ async def execute_pipeline(
 
         # Skip if upstream dependency has an error
         skip_node = False
-        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD, NodeType.SKILL):
+        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD, NodeType.SKILL, NodeType.SUBAGENT, NodeType.CODE_SANDBOX):
             for edge in pipeline.edges:
                 if edge.target == node.id and edge.source in results:
                     upstream = results[edge.source]
@@ -158,6 +160,10 @@ async def execute_pipeline(
             result = await _handle_thread(node, pipeline.edges, node_map, results)
         elif node.type == NodeType.SKILL:
             result = _handle_skill(node)
+        elif node.type == NodeType.SUBAGENT:
+            result = await _handle_subagent(node, auth_header, pipeline.edges, node_map)
+        elif node.type == NodeType.CODE_SANDBOX:
+            result = _handle_code_sandbox(node)
         else:
             result = ExecutionStepResult(
                 stepId=node.id,
@@ -953,6 +959,47 @@ def _handle_skill(node: PipelineNode) -> ExecutionStepResult:
     )
 
 
+PRESET_SUBAGENT_ROLES = [
+    {
+        "name": "Code Writer",
+        "systemPrompt": "You are a coding agent. Write clean, well-documented code. You have access to programming tools and can create, read, and modify files. Think step by step before writing code.",
+        "maxIterations": 8,
+        "allowedMcpTools": [],
+        "enabledSkills": ["python", "node", "git", "shell"],
+    },
+    {
+        "name": "Data Analyst",
+        "systemPrompt": "You are a data analysis agent. You work with data files, run statistical analysis, and create visualizations. Be thorough and explain your methodology.",
+        "maxIterations": 10,
+        "allowedMcpTools": [],
+        "enabledSkills": ["python", "shell", "jq"],
+    },
+    {
+        "name": "Web Researcher",
+        "systemPrompt": "You are a web research agent. You search the web, fetch pages, and synthesize information. Always cite sources and be factual.",
+        "maxIterations": 6,
+        "allowedMcpTools": [],
+        "enabledSkills": ["curl", "shell", "python"],
+    },
+    {
+        "name": "Debugger",
+        "systemPrompt": "You are a debugging agent. You analyze error messages, trace through code logic, and identify bugs. Be systematic: reproduce, isolate, identify, fix.",
+        "maxIterations": 12,
+        "allowedMcpTools": [],
+        "enabledSkills": ["python", "node", "shell", "git", "grep"],
+    },
+    {
+        "name": "Shell Operator",
+        "systemPrompt": "You are a shell operations agent. You run commands, manipulate files, and manage processes. Be careful with destructive operations and verify before acting.",
+        "maxIterations": 8,
+        "allowedMcpTools": [],
+        "enabledSkills": ["shell", "ssh", "curl", "git", "docker", "make", "jq", "grep"],
+    },
+]
+
+IN_MEMORY_SUBAGENT_ROLES: dict[str, dict] = {role['name']: role for role in PRESET_SUBAGENT_ROLES}
+
+
 def _handle_observer(
     node: PipelineNode,
     edges: list[PipelineEdge],
@@ -990,6 +1037,253 @@ def _handle_observer(
         curl=f"# Observer captures {len(captured)} step(s)",
         request={"captured": [c["nodeId"] for c in captured]},
         response={"captured": captured},
+    )
+
+
+async def _handle_subagent(
+    node: PipelineNode,
+    auth_header: Optional[str],
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
+) -> ExecutionStepResult:
+    """Handle a subagent node: run an autonomous agent with a specific role."""
+    config = node.data.config
+    role_name = config.get("roleName", "Code Writer")
+    role_override = config.get("customRole", None)
+    
+    # Resolve role
+    if role_override and role_override.get("name"):
+        role = role_override
+    else:
+        role = IN_MEMORY_SUBAGENT_ROLES.get(role_name, PRESET_SUBAGENT_ROLES[0])
+    
+    system_prompt = role.get("systemPrompt", "You are a helpful AI agent.")
+    max_iterations = role.get("maxIterations", 5)
+    allowed_tools = role.get("allowedMcpTools", [])
+    enabled_skills = role.get("enabledSkills", [])
+    
+    # Collect task from upstream nodes or config
+    task = config.get("task", "")
+    if not task:
+        task = "Complete the assigned task using your available tools and skills."
+    
+    # Build skill context
+    skill_context = ""
+    if enabled_skills:
+        skill_context = "You have access to the following environment skills:\n"
+        skill_map = {
+            "shell": "Shell (bash) — run commands, pipe output, file operations",
+            "git": "Git — clone, commit, push, branch, merge",
+            "docker": "Docker — build, run, compose, exec",
+            "python": "Python 3 — run scripts, pip install",
+            "node": "Node.js — run JS/TS, npm install",
+            "curl": "cURL — HTTP GET/POST to any URL",
+            "ssh": "SSH — remote access, port tunnels",
+            "make": "Make — build automation via Makefile",
+            "jq": "jq — JSON processor, filter and transform",
+            "grep": "grep/ripgrep — pattern search in files",
+        }
+        for s in enabled_skills:
+            desc = skill_map.get(s, s)
+            skill_context += f"  - {s}: {desc}\n"
+    
+    # Determine provider endpoint
+    provider = _find_upstream_provider(node.id, edges, node_map, {})
+    endpoint = ""
+    model = ""
+    if provider:
+        p_config = provider.data.config
+        endpoint = p_config.get("endpoint", "")
+        model = p_config.get("model", "gpt-4o")
+    
+    if not endpoint:
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.SUBAGENT.value,
+            error="No provider endpoint configured.",
+        )
+    
+    if not _validate_endpoint_url(endpoint):
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.SUBAGENT.value,
+            error=f"Blocked endpoint URL: {endpoint}",
+        )
+    
+    url = endpoint.rstrip("/") + "/chat/completions"
+    
+    # Collect MCP tools (filtered by allowed_tools if specified)
+    mcp_nodes = _find_upstream_mcp_nodes(node.id, edges, node_map)
+    all_tools = _collect_mcp_tools(mcp_nodes)
+    if allowed_tools:
+        tools = [t for t in all_tools if t.get("function", {}).get("name") in allowed_tools]
+    else:
+        tools = all_tools
+    
+    # Build messages
+    messages: list[dict] = []
+    
+    # Full system prompt with skills
+    full_system = system_prompt
+    if skill_context:
+        full_system += "\n\n## Environment Skills\n" + skill_context
+    if tools:
+        tool_names = [t["function"]["name"] for t in tools if "function" in t]
+        full_system += f"\n## Available MCP Tools\nYou can call these tools: {', '.join(tool_names)}"
+    full_system += "\n\nWhen you need to use a tool, call it directly. After receiving the result, continue working toward completing the task."
+    
+    messages.append({"role": "system", "content": full_system})
+    messages.append({"role": "user", "content": task})
+    
+    temperature = config.get("temperature", 0.7)
+    
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    
+    if tools:
+        body["tools"] = tools
+    
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if auth_header:
+        headers["Authorization"] = auth_header
+    
+    curl = generate_curl("POST", url, headers, body)
+    
+    tool_call_records: list[dict] = []
+    tool_call_count = 0
+    response_data = {}
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            resp.raise_for_status()
+            response_data = resp.json()
+            
+            # Tool-calling loop (same pattern as _handle_chat but with role's max_iterations)
+            while tool_call_count < max_iterations:
+                choice = response_data.get("choices", [{}])[0]
+                message = choice.get("message", {})
+                tool_calls = message.get("tool_calls")
+                
+                if not tool_calls:
+                    break
+                
+                record = {
+                    "assistant_message": {
+                        "role": "assistant",
+                        "content": message.get("content"),
+                        "tool_calls": tool_calls,
+                    },
+                    "results": [],
+                }
+                tool_call_records.append(record)
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": message.get("content") or None,
+                    "tool_calls": tool_calls,
+                })
+                
+                for tc in tool_calls:
+                    func_name = tc["function"]["name"]
+                    try:
+                        arguments = json.loads(tc["function"]["arguments"])
+                    except (json.JSONDecodeError, KeyError):
+                        arguments = {}
+                    
+                    mcp_node = _find_mcp_node_for_tool(mcp_nodes, func_name)
+                    
+                    if mcp_node is None:
+                        result_content = json.dumps({"error": f"Unknown tool: {func_name}"})
+                    else:
+                        server_url = mcp_node.data.config.get("serverUrl", "")
+                        if not server_url:
+                            result_content = json.dumps({"error": f"No server URL for tool: {func_name}"})
+                        else:
+                            try:
+                                from app.mcp_client import call_tool
+                                tool_result = await call_tool(server_url, func_name, arguments, headers=headers)
+                                result_content = json.dumps(tool_result)
+                            except Exception as exc:
+                                result_content = json.dumps({"error": str(exc)})
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result_content,
+                    })
+                    
+                    record["results"].append({
+                        "tool_call_id": tc["id"],
+                        "tool_name": func_name,
+                        "arguments": arguments,
+                        "result": result_content,
+                    })
+                
+                tool_call_count += 1
+                body["messages"] = messages
+                
+                resp = await client.post(url, json=body, headers=headers)
+                resp.raise_for_status()
+                response_data = resp.json()
+            
+    except httpx.HTTPError as exc:
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.SUBAGENT.value,
+            curl=curl,
+            request={"url": url, "role": role_name, "task": task},
+            response={"error": str(exc)},
+            error=f"Subagent API error: {exc}",
+        )
+    
+    final_content = ""
+    if response_data.get("choices"):
+        final_content = response_data["choices"][0].get("message", {}).get("content", "") or ""
+    
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.SUBAGENT.value,
+        curl=curl,
+        request={"role": role_name, "task": task, "maxIterations": max_iterations},
+        response={
+            "role": role_name,
+            "content": final_content,
+            "tool_calls_made": len(tool_call_records),
+            "tool_call_log": tool_call_records if tool_call_records else None,
+            "skills_used": enabled_skills,
+        },
+        tool_calls=tool_call_records if tool_call_records else None,
+    )
+
+
+def _handle_code_sandbox(node: PipelineNode) -> ExecutionStepResult:
+    """Handle a code sandbox node — execution is client-side via Pyodide/Web Worker."""
+    config = node.data.config
+    files = config.get("files", {})
+    active_file = config.get("activeFile", "main.py")
+    language = config.get("language", "python")
+
+    file_list = list(files.keys()) if isinstance(files, dict) else []
+
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.CODE_SANDBOX.value,
+        curl=f"# Code Sandbox: {language} | {len(file_list)} file(s) | active: {active_file}",
+        request={"language": language, "files": file_list, "activeFile": active_file},
+        response={
+            "status": "workspace_ready",
+            "language": language,
+            "fileCount": len(file_list),
+            "activeFile": active_file,
+            "note": "Code execution happens in-browser via Pyodide WASM. Run from the frontend.",
+        },
     )
 
 

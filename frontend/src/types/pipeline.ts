@@ -1,4 +1,4 @@
-export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill';
+export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill' | 'subagent' | 'code_sandbox';
 
 export interface Position {
   x: number;
@@ -58,10 +58,24 @@ export interface SkillConfig {
   enabledSkills: string[];
 }
 
+export interface SubagentConfig {
+  label: string;
+  roleName: string;
+  customRole: {
+    name: string;
+    systemPrompt: string;
+    maxIterations: number;
+    allowedMcpTools: string[];
+    enabledSkills: string[];
+  } | null;
+  task: string;
+  temperature: number;
+}
+
 export type NodeData = {
   label: string;
   type: NodeType;
-  config: ProviderConfig | ChatConfig | MCPConfig | ObserverConfig | SkillConfig | Record<string, any>;
+  config: ProviderConfig | ChatConfig | MCPConfig | ObserverConfig | SkillConfig | SubagentConfig | Record<string, any>;
 };
 
 export interface PipelineNode {

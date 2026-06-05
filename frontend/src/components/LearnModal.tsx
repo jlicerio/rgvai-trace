@@ -11,10 +11,11 @@ import {
   GitBranch,
   GraduationCap,
   Terminal,
+  Bot,
   X,
 } from 'lucide-react';
 
-type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill';
+type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill' | 'subagent';
 
 const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'provider', label: 'Provider', icon: <Database size={16} /> },
@@ -28,6 +29,7 @@ const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'context', label: 'Context', icon: <FileText size={16} /> },
   { id: 'thread', label: 'Thread', icon: <GitBranch size={16} /> },
   { id: 'skill', label: 'Env Skills', icon: <Terminal size={16} /> },
+  { id: 'subagent', label: 'Subagent', icon: <Bot size={16} /> },
 ];
 
 function SectionHeading({ label }: { label: string }) {
@@ -163,9 +165,9 @@ function ProviderContent() {
 function ChatContent() {
   return (
     <div className="space-y-4">
-      <WhatItIs text="The Chat node is where you talk to the LLM. It holds the conversation: system prompt (instructions for how the LLM should behave), user messages, and receives the model&rsquo;s response. It&rsquo;s the core interaction node of any pipeline." />
+      <WhatItIs text="The Chat node is where you talk to the LLM. It holds the conversation: system prompt (instructions for how the LLM should behave), user messages, and receives the model's response. It's the core interaction node of any pipeline." />
       <KeyConcepts rows={[
-        { concept: 'System Prompt', definition: 'Instructions that set the LLM&rsquo;s behavior and personality' },
+        { concept: 'System Prompt', definition: "Instructions that set the LLM&rsquo;s behavior and personality" },
         { concept: 'Messages', definition: 'Array of conversation turns (user, assistant, tool)' },
         { concept: 'Temperature', definition: 'Controls randomness (0=deterministic, 1=creative)' },
         { concept: 'Tool Calling', definition: 'When MCP nodes are connected, their tools are sent to the LLM automatically' },
@@ -183,7 +185,7 @@ function ChatContent() {
       <ExamplePipeline text="Provider → Chat → MCP → Observer. Chat defines the prompt, MCP provides tools, Observer captures everything." />
       <ExampleCurl code={`curl -X POST https://api.openai.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer $OPENAI_API_KEY" \\
+  -H "Authorization: Bearer ***" \\
   -d '{
     "model": "gpt-4o",
     "messages": [{"role": "user", "content": "Hello!"}],
@@ -204,7 +206,7 @@ function MCPContent() {
         { concept: 'Tool Calling Loop', definition: 'The LLM requests a tool → system calls it → result goes back to LLM → LLM continues' },
       ]} />
       <HowItWorks paragraphs={[
-        'After you enter an MCP server URL and click &ldquo;Discover Tools&rdquo;, the frontend calls POST /api/mcp/list-tools to fetch available tools. These tool definitions are stored in the node&rsquo;s config.',
+        'After you enter an MCP server URL and click &ldquo;Discover Tools&rdquo;, the frontend calls POST /api/mcp/list-tools to fetch available tools. These tool definitions are stored in the node\'s config.',
         'When the pipeline executes, if a Chat node is connected upstream from this MCP node, the tool definitions are included in the LLM request as OpenAI tool-calling format functions. The LLM can then decide to call them, and the system handles the execution loop automatically.',
       ]} />
       <ConfigurationFields fields={[
@@ -345,8 +347,8 @@ function MemoryContent() {
         { field: 'value', type: 'string', default: "''", description: 'Value to store (store action only)' },
       ]} />
       <ExamplePipeline text="Provider → Memory → Chat → Observer. Memory stores conversation context between turns, enabling stateful multi-turn conversations." />
-      <ExampleCurl code={`curl -X POST /api/memory/store \\\\
-  -H "Content-Type: application/json" \\\\
+      <ExampleCurl code={`curl -X POST /api/memory/store \\
+  -H "Content-Type: application/json" \\
   -d '{"namespace": "default", "key": "user_name", "value": "Alice"}'`} />
     </div>
   );
@@ -374,8 +376,8 @@ function ContextContent() {
         { field: 'position', type: 'string', default: "'prepend_system'", description: 'Where to inject: prepend_system, append_user, or replace_system' },
       ]} />
       <ExamplePipeline text="Provider → Search → Context → Chat → Observer. Search fetches facts, Context formats them, Chat answers based on the enriched prompt." />
-      <ExampleCurl code={`curl -X POST /api/context/inject \\\\
-  -H "Content-Type: application/json" \\\\
+      <ExampleCurl code={`curl -X POST /api/context/inject \\
+  -H "Content-Type: application/json" \\
   -d '{"content": "The sky is blue on Earth but red on Mars.", "position": "prepend_system"}'`} />
     </div>
   );
@@ -436,6 +438,38 @@ function SkillContent() {
   );
 }
 
+function SubagentContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Subagent node spawns an autonomous child agent with its own role, tools, and skills. Think of it as hiring a specialist — you give it a role (Code Writer, Data Analyst, etc.), define its system prompt, and set the task it needs to complete. The subagent operates independently, making tool calls and iterating until the task is done." />
+      <KeyConcepts rows={[
+        { concept: 'Subagent Role', definition: 'A predefined persona with its own system prompt, tool access, and skill set' },
+        { concept: 'Autonomous Execution', definition: 'The subagent runs independently, calling tools and iterating until the task is complete' },
+        { concept: 'Skill Injection', definition: 'Enabled skills are injected into the subagent system prompt as available environment capabilities' },
+        { concept: 'Tool Filtering', definition: 'The role\'s allowedMcpTools whitelist controls which MCP tools the subagent can call' },
+        { concept: 'Max Iterations', definition: 'Limits the tool-calling loop to prevent runaway agents (customizable per role)' },
+        { concept: 'Hierarchical Agents', definition: 'Subagent nodes enable parent-child agent architectures for complex task decomposition' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'When a Subagent node executes, it creates an autonomous LLM agent with the configured role. The role provides the system prompt, max iterations, allowed MCP tools, and environment skills. The task input comes from the node config or upstream nodes.',
+        'The subagent works through a tool-calling loop: it receives the task, decides which tools to call, receives results, and continues iterating until the task is complete or the iteration limit is reached. This mirrors how a human developer would break down and solve a complex problem.',
+        'Subagents can be used for specialized subtasks like "Write a Python script to parse this CSV and generate a report" (Code Writer role), "Debug the error in this stack trace" (Debugger role), or "Search the web for the latest research on topic X" (Web Researcher role).',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Subagent'", description: 'Display label on the canvas' },
+        { field: 'roleName', type: 'string', default: "'Code Writer'", description: 'Preset role to use (Code Writer, Data Analyst, Web Researcher, Debugger, Shell Operator)' },
+        { field: 'customRole', type: 'object', default: 'null', description: 'Custom role override with name, systemPrompt, maxIterations, allowedMcpTools, enabledSkills' },
+        { field: 'task', type: 'string', default: "''", description: 'The task/instruction to give the subagent' },
+        { field: 'temperature', type: 'number', default: '0.7', description: 'LLM response randomness (0-1)' },
+      ]} />
+      <ExamplePipeline text="Provider → Subagent → Observer. The Subagent spawns a child agent with its own role, executes autonomously, and returns results." />
+      <ExampleCurl code={`# Subagent creates an autonomous child agent with its own role and task.
+# The subagent manages its own tool-calling loop internally.
+# No single curl — the subagent handles the LLM conversation.`} />
+    </div>
+  );
+}
+
 const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   provider: <ProviderContent />,
   chat: <ChatContent />,
@@ -448,6 +482,7 @@ const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   context: <ContextContent />,
   thread: <ThreadContent />,
   skill: <SkillContent />,
+  subagent: <SubagentContent />,
 };
 
 interface LearnModalProps {
