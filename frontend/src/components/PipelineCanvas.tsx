@@ -18,6 +18,9 @@ import ObserverNode from './nodes/ObserverNode';
 import BrowserNode from './nodes/BrowserNode';
 import SearchNode from './nodes/SearchNode';
 import RegistryNode from './nodes/RegistryNode';
+import MemoryNode from './nodes/MemoryNode';
+import ContextNode from './nodes/ContextNode';
+import ThreadNode from './nodes/ThreadNode';
 
 const nodeTypes = {
   provider: ProviderNode,
@@ -27,6 +30,9 @@ const nodeTypes = {
   browser: BrowserNode,
   search: SearchNode,
   registry: RegistryNode,
+  memory: MemoryNode,
+  context: ContextNode,
+  thread: ThreadNode,
 };
 
 interface PipelineCanvasProps {

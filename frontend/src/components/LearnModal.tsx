@@ -7,11 +7,13 @@ import {
   Globe,
   Search,
   FileJson,
+  FileText,
+  GitBranch,
   GraduationCap,
   X,
 } from 'lucide-react';
 
-type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry';
+type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread';
 
 const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'provider', label: 'Provider', icon: <Database size={16} /> },
@@ -21,6 +23,9 @@ const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'browser', label: 'Browser', icon: <Globe size={16} /> },
   { id: 'search', label: 'Search', icon: <Search size={16} /> },
   { id: 'registry', label: 'Registry', icon: <FileJson size={16} /> },
+  { id: 'memory', label: 'Memory', icon: <Database size={16} /> },
+  { id: 'context', label: 'Context', icon: <FileText size={16} /> },
+  { id: 'thread', label: 'Thread', icon: <GitBranch size={16} /> },
 ];
 
 function SectionHeading({ label }: { label: string }) {
@@ -315,6 +320,93 @@ function RegistryContent() {
   );
 }
 
+function MemoryContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Memory node provides persistent key-value storage for your pipeline. It can store, retrieve, and list entries across pipeline runs using namespaces. Think of it as a simple database that lets your agent remember information between executions." />
+      <KeyConcepts rows={[
+        { concept: 'Key-Value Storage', definition: 'Data is stored as key-value pairs, similar to a dictionary or hash map' },
+        { concept: 'Namespaces', definition: 'Logical groupings of keys to avoid collisions (e.g., user_session, global_config)' },
+        { concept: 'Store', definition: 'Saves a value under a given key and namespace for later retrieval' },
+        { concept: 'Retrieve', definition: 'Fetches a previously stored value by key and namespace' },
+        { concept: 'List', definition: 'Returns all entries in a namespace for inspection or iteration' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'When you configure a Memory node, you pick an action (store, retrieve, or list) and a namespace. For store and retrieve, you also provide a key. The node communicates with a backend memory store that persists data between pipeline executions.',
+        'This enables powerful patterns like conversation history storage, caching expensive computations, sharing state between pipeline branches, and maintaining user preferences across sessions.',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Memory'", description: 'Display label on the canvas' },
+        { field: 'action', type: 'string', default: "'retrieve'", description: 'Operation: store, retrieve, or list' },
+        { field: 'namespace', type: 'string', default: "'default'", description: 'Logical grouping key for entries' },
+        { field: 'key', type: 'string', default: "''", description: 'Key to store or retrieve (not used for list)' },
+        { field: 'value', type: 'string', default: "''", description: 'Value to store (store action only)' },
+      ]} />
+      <ExamplePipeline text="Provider → Memory → Chat → Observer. Memory stores conversation context between turns, enabling stateful multi-turn conversations." />
+      <ExampleCurl code={`curl -X POST /api/memory/store \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{"namespace": "default", "key": "user_name", "value": "Alice"}'`} />
+    </div>
+  );
+}
+
+function ContextContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Context node injects external knowledge into your pipeline's prompts. It lets you add static or dynamic content (from files, APIs, or RAG sources) to the LLM's input, enabling retrieval-augmented generation (RAG) and system prompt augmentation." />
+      <KeyConcepts rows={[
+        { concept: 'Context Injection', definition: 'Inserting additional information into the LLM prompt to ground its responses' },
+        { concept: 'RAG', definition: 'Retrieval-Augmented Generation — fetching relevant documents and inserting them as context' },
+        { concept: 'System Prompt Augmentation', definition: 'Appending or prepending context to the system message for behavior steering' },
+        { concept: 'Static Context', definition: 'Fixed content you write directly in the node configuration' },
+        { concept: 'Dynamic Context', definition: 'Content loaded from upstream nodes, files, or live data sources' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'The Context node sits upstream of Chat nodes. When the pipeline executes, the content you provide is injected into the Chat node\'s prompt at the position you specify (prepend to system prompt, append to user message, or replace system prompt entirely).',
+        'This enables RAG patterns where upstream nodes (Search, Browser) fetch information that the Context node formats and passes to the Chat node, keeping the LLM grounded in current or domain-specific data without modifying its training.',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Context'", description: 'Display label on the canvas' },
+        { field: 'content', type: 'string', default: "''", description: 'Text content to inject into the prompt' },
+        { field: 'enabled', type: 'boolean', default: 'true', description: 'Toggle context injection on/off without deleting the node' },
+        { field: 'position', type: 'string', default: "'prepend_system'", description: 'Where to inject: prepend_system, append_user, or replace_system' },
+      ]} />
+      <ExamplePipeline text="Provider → Search → Context → Chat → Observer. Search fetches facts, Context formats them, Chat answers based on the enriched prompt." />
+      <ExampleCurl code={`curl -X POST /api/context/inject \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{"content": "The sky is blue on Earth but red on Mars.", "position": "prepend_system"}'`} />
+    </div>
+  );
+}
+
+function ThreadContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Thread node enables parallel execution and branching in your pipeline. It splits the flow into multiple concurrent branches (fan-out) and optionally merges them back (fan-in). This is essential for building complex agentic systems that run multiple operations simultaneously." />
+      <KeyConcepts rows={[
+        { concept: 'Parallel Execution', definition: 'Running multiple pipeline branches at the same time rather than sequentially' },
+        { concept: 'Branching', definition: 'Splitting the execution flow into separate paths that process independently' },
+        { concept: 'Fan-Out', definition: 'One input is distributed to multiple parallel branches for concurrent processing' },
+        { concept: 'Fan-In', definition: 'Results from multiple parallel branches are collected and merged back into a single flow' },
+        { concept: 'Concurrency', definition: 'The number of branches that execute simultaneously, controllable via Thread config' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'When the pipeline reaches a Thread node configured in fan-out mode, it dispatches execution to all connected downstream branches simultaneously. Each branch receives the same input data and processes it independently. In fan-in mode, the Thread node waits for all branches to complete and aggregates their outputs.',
+        'This is particularly useful for patterns like multi-model comparison (send the same prompt to different LLMs), parallel tool execution (call multiple APIs at once), and map-reduce workflows (split work, process concurrently, merge results).',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Thread'", description: 'Display label on the canvas' },
+        { field: 'mode', type: 'string', default: "'parallel'", description: 'Execution strategy: parallel, fan_out, or fan_in' },
+        { field: 'branches', type: 'array', default: '[]', description: 'List of branch definitions with labels and node assignments' },
+      ]} />
+      <ExamplePipeline text="Provider → Thread (fan-out) → [Search, Browser] → Thread (fan-in) → Chat → Observer. Two parallel data fetches merge into a single Chat call." />
+      <ExampleCurl code={`# Thread fan-out dispatches to multiple branches concurrently.
+# Each branch executes independently and results are merged at fan-in.
+# No single curl — threads are managed by the pipeline executor.`} />
+    </div>
+  );
+}
+
 const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   provider: <ProviderContent />,
   chat: <ChatContent />,
@@ -323,6 +415,9 @@ const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   browser: <BrowserContent />,
   search: <SearchContent />,
   registry: <RegistryContent />,
+  memory: <MemoryContent />,
+  context: <ContextContent />,
+  thread: <ThreadContent />,
 };
 
 interface LearnModalProps {

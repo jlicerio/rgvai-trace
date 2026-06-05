@@ -365,5 +365,233 @@ export const LESSONS: Lesson[] = [
         message: 'Agent successfully generated code for calculator_utility and registered it on the fly.'
       }
     }
+  },
+  {
+    id: 'lesson-6-memory',
+    phase: 3,
+    title: 'Persistent Memory Store',
+    description: 'Unlock Memory. Use the Memory node to store and retrieve data across pipeline runs, enabling stateful agent behavior.',
+    difficulty: 'Intermediate',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'chat-1',
+          type: 'chat',
+          position: { x: 300, y: 100 },
+          data: {
+            label: 'Memory Chat',
+            type: 'chat',
+            config: { label: 'Memory Chat', systemPrompt: 'Use stored memory to answer the user query.', messages: [{ role: 'user', content: 'What do I remember about Mars?' }] }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 580, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'chat-1' },
+        { id: 'e2', source: 'chat-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-memory', text: 'Add a Memory Node to the canvas.', type: 'node_exists', targetType: 'memory' },
+      { id: 'connect-memory', text: 'Connect Memory Node to Chat Node.', type: 'edge_exists', sourceType: 'memory', targetType: 'chat' },
+      { id: 'run-success', text: 'Run the memory-augmented pipeline.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag a Memory node onto the canvas and configure it to retrieve a key (e.g. "mars_fact").',
+      'Connect the Memory node to the Chat node so stored facts can be injected into the conversation context.',
+      'Press Run to execute and see the stored memory value influence the LLM response.'
+    ],
+    sandboxData: {
+      expectedInput: 'Mars memory',
+      mockResponse: {
+        status: 'success',
+        action: 'retrieve',
+        key: 'mars_fact',
+        value: 'Olympus Mons is the tallest mountain on Mars at 21.9 km.',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Based on stored memory, Olympus Mons is the tallest mountain on Mars at 21.9 km.'
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    id: 'lesson-7-context',
+    phase: 4,
+    title: 'Context Injection & RAG',
+    description: 'Unlock Context. Use the Context node to inject knowledge documents into LLM prompts for retrieval-augmented generation.',
+    difficulty: 'Intermediate',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'chat-1',
+          type: 'chat',
+          position: { x: 300, y: 100 },
+          data: {
+            label: 'RAG Chat',
+            type: 'chat',
+            config: { label: 'RAG Chat', systemPrompt: 'Answer based on the provided context.', messages: [{ role: 'user', content: 'What does the context document say?' }] }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 580, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'chat-1' },
+        { id: 'e2', source: 'chat-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-context', text: 'Add a Context Node to the canvas.', type: 'node_exists', targetType: 'context' },
+      { id: 'connect-context', text: 'Connect Context Node to Chat Node.', type: 'edge_exists', sourceType: 'context', targetType: 'chat' },
+      { id: 'run-success', text: 'Run the context-augmented pipeline.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag a Context node onto the canvas and fill in knowledge content (e.g. "Mars has a thin atmosphere composed mostly of CO2.").',
+      'Connect the Context node to the Chat node so the content is injected as system prompt augmentation.',
+      'Press Run to see the injected knowledge influence the LLM response.'
+    ],
+    sandboxData: {
+      expectedInput: 'context injection',
+      mockResponse: {
+        status: 'success',
+        content: 'Mars has a thin atmosphere composed mostly of CO2.',
+        position: 'prepend_system',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Based on the injected context, Mars has a thin atmosphere composed mostly of carbon dioxide (CO2).'
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    id: 'lesson-8-threads',
+    phase: 5,
+    title: 'Parallel Execution with Threads',
+    description: 'Unlock Thread. Use the Thread node for parallel execution, branching, and fan-out/fan-in concurrency in your pipeline.',
+    difficulty: 'Advanced',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 250 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'thread-1',
+          type: 'thread',
+          position: { x: 250, y: 150 },
+          data: {
+            label: 'Parallel Thread',
+            type: 'thread',
+            config: { label: 'Parallel Thread', mode: 'parallel', branches: [{ id: 'b1', label: 'Branch 1', nodeIds: [] }, { id: 'b2', label: 'Branch 2', nodeIds: [] }] }
+          }
+        },
+        {
+          id: 'chat-1',
+          type: 'chat',
+          position: { x: 450, y: 200 },
+          data: {
+            label: 'Merged Chat',
+            type: 'chat',
+            config: { label: 'Merged Chat', systemPrompt: 'Combine results from parallel branches.', messages: [{ role: 'user', content: 'Show me all branch outputs.' }] }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 700, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'thread-1' },
+        { id: 'e2', source: 'thread-1', target: 'chat-1' },
+        { id: 'e3', source: 'chat-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-thread', text: 'Confirm Thread node exists on the canvas.', type: 'node_exists', targetType: 'thread' },
+      { id: 'connect-thread', text: 'Connect Thread node to Chat node.', type: 'edge_exists', sourceType: 'thread', targetType: 'chat' },
+      { id: 'run-success', text: 'Run the parallel execution pipeline.', type: 'execution_completed' }
+    ],
+    hints: [
+      'The Thread node with parallel mode splits execution into multiple concurrent branches.',
+      'Connect the Thread node to the Chat node so that merged branch results feed into the LLM prompt.',
+      'Press Run to see the results from each parallel branch combined in the final output.'
+    ],
+    sandboxData: {
+      expectedInput: 'parallel',
+      mockResponse: {
+        status: 'success',
+        mode: 'parallel',
+        branchResults: [
+          { branchId: 'b1', result: 'Branch 1: Latest news headlines parsed.' },
+          { branchId: 'b2', result: 'Branch 2: Weather data retrieved.' }
+        ],
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Parallel execution complete. Branch 1 returned the latest news headlines, and Branch 2 retrieved weather data. Both results are now available for downstream processing.'
+            }
+          }
+        ]
+      }
+    }
   }
 ];

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.models import CurlRequest, ExecutionRequest
 from app.curl_gen import generate_curl_from_config
-from app.executor import execute_pipeline
+from app.executor import execute_pipeline, MEMORY_STORE
 from app.mcp_client import list_tools as mcp_list_tools
 from app.tools import web_search, fetch_page
 from app.registry import load_registry, save_registry, discover_tools, call_registry_tool
@@ -268,6 +268,61 @@ async def registry_call(raw_request: Request):
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/memory")
+async def memory_store_endpoint(raw_request: Request):
+    """
+    Store, retrieve, or delete a value from the in-memory store.
+
+    Body: { action: str, namespace: str, key: str, value: str }
+    """
+    try:
+        body = await raw_request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body must be valid JSON")
+
+    action = body.get("action", "store")
+    namespace = body.get("namespace", "default")
+    key = body.get("key", "")
+    value = body.get("value", "")
+
+    if action == "store":
+        if not key:
+            raise HTTPException(status_code=400, detail="'key' is required for store action")
+        if namespace not in MEMORY_STORE:
+            MEMORY_STORE[namespace] = {}
+        MEMORY_STORE[namespace][key] = value
+        return {"status": "stored", "namespace": namespace, "key": key, "value": value}
+
+    elif action == "retrieve":
+        if not key:
+            raise HTTPException(status_code=400, detail="'key' is required for retrieve action")
+        ns = MEMORY_STORE.get(namespace, {})
+        stored_value = ns.get(key)
+        if stored_value is None:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' not found in namespace '{namespace}'")
+        return {"key": key, "value": stored_value}
+
+    elif action == "delete":
+        if not key:
+            raise HTTPException(status_code=400, detail="'key' is required for delete action")
+        ns = MEMORY_STORE.get(namespace, {})
+        if key not in ns:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' not found in namespace '{namespace}'")
+        del ns[key]
+        return {"status": "deleted", "namespace": namespace, "key": key}
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: '{action}'. Use 'store', 'retrieve', or 'delete'.")
+
+
+@app.get("/api/memory")
+async def memory_list_endpoint(namespace: str = "default"):
+    """List all entries in the given memory namespace."""
+    ns = MEMORY_STORE.get(namespace, {})
+    entries = [{"key": k, "value": v} for k, v in ns.items()]
+    return {"namespace": namespace, "entries": entries}
 
 
 @app.post("/api/mcp/list-tools")

@@ -10,6 +10,9 @@ class NodeType(str, Enum):
     OBSERVER = "observer"
     BROWSER = "browser"
     SEARCH = "search"
+    MEMORY = "memory"
+    CONTEXT = "context"
+    THREAD = "thread"
 
 
 class Position(BaseModel):

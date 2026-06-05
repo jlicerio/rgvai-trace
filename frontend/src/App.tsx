@@ -30,6 +30,9 @@ import {
   StepForward,
   PanelLeftClose,
   PanelRightClose,
+  MemoryStick,
+  FileText,
+  GitBranch,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -53,6 +56,9 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode }[] 
   { type: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
   { type: 'browser', label: 'Browser', icon: <Globe size={14} /> },
   { type: 'search', label: 'Search', icon: <SearchIcon size={14} /> },
+  { type: 'memory', label: 'Memory', icon: <Database size={14} /> },
+  { type: 'context', label: 'Context', icon: <FileText size={14} /> },
+  { type: 'thread', label: 'Thread', icon: <GitBranch size={14} /> },
   { type: 'mcp', label: 'MCP', icon: <Wrench size={14} /> },
   { type: 'registry', label: 'Registry', icon: <FileJson size={14} /> },
   { type: 'observer', label: 'Observer', icon: <Eye size={14} /> },
@@ -112,6 +118,24 @@ function getDefaultData(type: NodeType) {
         label: 'Registry',
         type: 'registry',
         config: { label: 'Registry', meta: { name: 'Tool Registry', description: '' }, tools: [], fileDropped: false, error: '' },
+      };
+    case 'memory':
+      return {
+        label: 'Memory',
+        type: 'memory',
+        config: { label: 'Memory', action: 'retrieve', namespace: 'default', key: '', value: '', storedKey: '', retrievedValue: '', entries: [], error: '' },
+      };
+    case 'context':
+      return {
+        label: 'Context',
+        type: 'context',
+        config: { label: 'Context', content: '', enabled: true, position: 'prepend_system', error: '' },
+      };
+    case 'thread':
+      return {
+        label: 'Thread',
+        type: 'thread',
+        config: { label: 'Thread', mode: 'parallel', branches: [], error: '' },
       };
   }
 }
@@ -294,6 +318,12 @@ function AppInner() {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', value: 'Headless browser text captured.' };
           } else if (node.type === 'registry') {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', value: 'Calculators loaded.' };
+          } else if (node.type === 'memory') {
+            response = activeLesson?.sandboxData?.mockResponse || { status: 'success', action: 'retrieve', key: 'demo_key', value: 'Demo memory value', entries: [] };
+          } else if (node.type === 'context') {
+            response = activeLesson?.sandboxData?.mockResponse || { status: 'success', content: 'Injected context content.', position: 'prepend_system' };
+          } else if (node.type === 'thread') {
+            response = activeLesson?.sandboxData?.mockResponse || { status: 'success', mode: 'parallel', branchResults: [{ branchId: 'b1', result: 'Branch 1 complete' }] };
           } else {
             response = { status: 'success' };
           }
@@ -411,6 +441,26 @@ function AppInner() {
           response = activeLesson?.sandboxData?.mockResponse || {
             status: 'success',
             value: 'Calculators loaded.',
+          };
+        } else if (nodeType === 'memory') {
+          response = activeLesson?.sandboxData?.mockResponse || {
+            status: 'success',
+            action: 'retrieve',
+            key: 'demo_key',
+            value: 'Demo memory value',
+            entries: [],
+          };
+        } else if (nodeType === 'context') {
+          response = activeLesson?.sandboxData?.mockResponse || {
+            status: 'success',
+            content: 'Injected context content.',
+            position: 'prepend_system',
+          };
+        } else if (nodeType === 'thread') {
+          response = activeLesson?.sandboxData?.mockResponse || {
+            status: 'success',
+            mode: 'parallel',
+            branchResults: [{ branchId: 'b1', result: 'Branch 1 complete' }],
           };
         } else {
           response = { status: 'success' };

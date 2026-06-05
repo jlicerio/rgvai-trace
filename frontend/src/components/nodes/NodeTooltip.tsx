@@ -35,6 +35,18 @@ const TOOLTIPS: Record<string, TooltipContent> = {
     what: 'Loads a JSON file defining custom tools. Each tool has a name, endpoint, method, and parameters. The registry is self-modifying — tools with write_allowed: true can update their own definitions.',
     concept: 'A tool registry lets LLMs discover and use capabilities dynamically. Self-modification is the key insight behind autonomous agents: a system that can edit its own tool definitions can grow new abilities without human intervention.',
   },
+  memory: {
+    what: 'Reads and writes to a persistent key-value store. Supports store, retrieve, list, and delete operations scoped by namespace.',
+    concept: 'Memory gives agents persistent storage across pipeline executions. By storing and retrieving information by key, agents can maintain state, remember conversation history, and share data between pipeline runs — essential for long-running autonomous systems.',
+  },
+  context: {
+    what: 'Injects context text into prompts. Optionally prepends to the system prompt or appends to the user message. Can be toggled on/off.',
+    concept: 'Context injection (often called RAG — Retrieval-Augmented Generation) lets you ground LLM responses in external information. By inserting relevant documents, instructions, or data into the prompt, you guide the model toward more accurate and useful answers without retraining.',
+  },
+  thread: {
+    what: 'Controls branching execution mode. In parallel mode all downstream nodes run concurrently; in sequential mode they run one by one.',
+    concept: 'Threading enables parallel execution, branching, and fan-out/fan-in patterns in agentic pipelines. Parallel execution speeds up independent tasks, while sequential execution maintains order for dependent operations — giving fine-grained control over workflow orchestration.',
+  },
 };
 
 export default function NodeTooltip({ nodeType, compact = false }: { nodeType: string; compact?: boolean }) {

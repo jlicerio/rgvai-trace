@@ -1,4 +1,4 @@
-export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry';
+export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread';
 
 export interface Position {
   x: number;

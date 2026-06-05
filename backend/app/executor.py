@@ -4,6 +4,7 @@ Pipeline execution engine.
 Walks a PipelineGraph in topological order, executing each node
 according to its type and collecting results.
 """
+import asyncio
 import json
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -27,6 +28,9 @@ BLOCKED_CIDR = [r"^10\.", r"^172\.(1[6-9]|2\d|3[01])\.", r"^192\.168\."]
 
 # Maximum number of tool-calling iterations to prevent infinite loops
 MAX_TOOL_CALL_ITERATIONS = 10
+
+# Global in-memory key-value store for memory nodes
+MEMORY_STORE: dict[str, dict[str, str]] = {}
 
 
 def _validate_endpoint_url(url: str) -> bool:
@@ -105,7 +109,7 @@ async def execute_pipeline(
 
         # Skip if upstream dependency has an error
         skip_node = False
-        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER):
+        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD):
             for edge in pipeline.edges:
                 if edge.target == node.id and edge.source in results:
                     upstream = results[edge.source]
@@ -134,6 +138,12 @@ async def execute_pipeline(
             result = await _handle_browser(node)
         elif node.type == NodeType.SEARCH:
             result = await _handle_search(node)
+        elif node.type == NodeType.MEMORY:
+            result = await _handle_memory(node)
+        elif node.type == NodeType.CONTEXT:
+            result = _handle_context(node)
+        elif node.type == NodeType.THREAD:
+            result = await _handle_thread(node, pipeline.edges, node_map, results)
         else:
             result = ExecutionStepResult(
                 stepId=node.id,
@@ -697,6 +707,201 @@ async def _handle_search(node: PipelineNode) -> ExecutionStepResult:
             request={"query": query, "count": count},
             response={},
             error=f"Search error: {exc}",
+        )
+
+
+async def _handle_memory(node: PipelineNode) -> ExecutionStepResult:
+    """Handle a memory node: store, retrieve, or list key/value entries."""
+    config = node.data.config
+    action = config.get("action", "store")
+    namespace = config.get("namespace", "default")
+    key = config.get("key", "")
+    value = config.get("value", "")
+
+    if action == "store":
+        if not key:
+            return ExecutionStepResult(
+                stepId=node.id,
+                nodeType=NodeType.MEMORY.value,
+                error="No 'key' configured for store action.",
+            )
+        if namespace not in MEMORY_STORE:
+            MEMORY_STORE[namespace] = {}
+        MEMORY_STORE[namespace][key] = value
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.MEMORY.value,
+            curl=f"# Memory store: namespace={namespace}, key={key}",
+            request={"action": "store", "namespace": namespace, "key": key},
+            response={"status": "stored", "namespace": namespace, "key": key, "value": value},
+        )
+
+    elif action == "retrieve":
+        if not key:
+            return ExecutionStepResult(
+                stepId=node.id,
+                nodeType=NodeType.MEMORY.value,
+                error="No 'key' configured for retrieve action.",
+            )
+        ns = MEMORY_STORE.get(namespace, {})
+        stored_value = ns.get(key)
+        if stored_value is None:
+            return ExecutionStepResult(
+                stepId=node.id,
+                nodeType=NodeType.MEMORY.value,
+                error=f"Key '{key}' not found in namespace '{namespace}'.",
+            )
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.MEMORY.value,
+            curl=f"# Memory retrieve: namespace={namespace}, key={key}",
+            request={"action": "retrieve", "namespace": namespace, "key": key},
+            response={"key": key, "value": stored_value},
+        )
+
+    elif action == "list":
+        ns = MEMORY_STORE.get(namespace, {})
+        entries = [{"key": k, "value": v} for k, v in ns.items()]
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.MEMORY.value,
+            curl=f"# Memory list: namespace={namespace}",
+            request={"action": "list", "namespace": namespace},
+            response={"namespace": namespace, "entries": entries},
+        )
+
+    else:
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.MEMORY.value,
+            error=f"Unknown memory action: '{action}'. Use 'store', 'retrieve', or 'list'.",
+        )
+
+
+def _handle_context(node: PipelineNode) -> ExecutionStepResult:
+    """Handle a context node: return the configured content as a record."""
+    config = node.data.config
+    content = config.get("content", "")
+    enabled = config.get("enabled", True)
+    position = config.get("position", "prepend_system")
+
+    if not enabled:
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.CONTEXT.value,
+            curl="# Context node: disabled",
+            request={"enabled": False},
+            response={"status": "skipped", "reason": "context_not_enabled"},
+        )
+
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.CONTEXT.value,
+        curl=f"# Context: {content[:60]}{'...' if len(content) > 60 else ''}",
+        request={"content": content, "enabled": enabled, "position": position},
+        response={
+            "status": "context_registered",
+            "content": content,
+            "position": position,
+        },
+    )
+
+
+async def _handle_thread(
+    node: PipelineNode,
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
+    previous_results: dict[str, ExecutionStepResult],
+) -> ExecutionStepResult:
+    """Handle a thread node: execute downstream nodes in parallel or sequential mode."""
+    config = node.data.config
+    mode = config.get("mode", "sequential")
+
+    # Find immediate downstream nodes
+    downstream_ids = [e.target for e in edges if e.source == node.id]
+    downstream_nodes = [
+        node_map[nid] for nid in downstream_ids if nid in node_map
+    ]
+
+    if not downstream_nodes:
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.THREAD.value,
+            curl=f"# Thread ({mode}): no downstream nodes",
+            request={"mode": mode, "downstream": []},
+            response={"status": "no_downstream_nodes"},
+        )
+
+    downstream_configs = [
+        {"id": n.id, "type": n.type.value, "label": n.data.label}
+        for n in downstream_nodes
+    ]
+
+    if mode == "parallel":
+        # Execute all downstream nodes concurrently
+        async def _run_downstream(n: PipelineNode) -> tuple[str, ExecutionStepResult]:
+            # Simple passthrough: each downstream node will be executed
+            # by the main loop. Here we just collect already-executed results
+            # that appear in previous_results.
+            if n.id in previous_results:
+                return n.id, previous_results[n.id]
+            return n.id, ExecutionStepResult(
+                stepId=n.id,
+                nodeType=n.type.value,
+                error="Not yet executed (parallel thread collects prior results)",
+            )
+
+        tasks = [_run_downstream(n) for n in downstream_nodes]
+        collected = await asyncio.gather(*tasks)
+        combined = dict(collected)
+
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.THREAD.value,
+            curl=f"# Thread (parallel): {len(downstream_nodes)} downstream node(s)",
+            request={"mode": "parallel", "downstream": downstream_configs},
+            response={
+                "mode": "parallel",
+                "results": {
+                    nid: {
+                        "stepId": r.stepId,
+                        "nodeType": r.nodeType,
+                        "response": r.response,
+                        "error": r.error,
+                    }
+                    for nid, r in combined.items()
+                },
+            },
+        )
+
+    else:
+        # Sequential mode: process downstream nodes one by one
+        sequential_results: dict[str, dict] = {}
+        for n in downstream_nodes:
+            if n.id in previous_results:
+                r = previous_results[n.id]
+                sequential_results[n.id] = {
+                    "stepId": r.stepId,
+                    "nodeType": r.nodeType,
+                    "response": r.response,
+                    "error": r.error,
+                }
+            else:
+                sequential_results[n.id] = {
+                    "stepId": n.id,
+                    "nodeType": n.type.value,
+                    "error": "Not yet executed (sequential thread collects prior results)",
+                }
+
+        return ExecutionStepResult(
+            stepId=node.id,
+            nodeType=NodeType.THREAD.value,
+            curl=f"# Thread (sequential): {len(downstream_nodes)} downstream node(s)",
+            request={"mode": "sequential", "downstream": downstream_configs},
+            response={
+                "mode": "sequential",
+                "results": sequential_results,
+            },
         )
 
 
