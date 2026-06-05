@@ -12,7 +12,7 @@ function CodeSandboxNode({ data, selected }: NodeProps) {
   
   return (
     <div className={`bg-gray-900 border-2 rounded-xl shadow-xl w-[240px] ${selected ? 'border-gray-400' : 'border-gray-700'}`}>
-      <Handle type="target" position={Position.Top} className="!bg-gray-600 !w-3 !h-3 !border-2 !border-gray-900" />
+      <Handle type="target" position={Position.Top} className="!bg-gray-500 !w-3 !h-3 !border-2 !border-gray-900" />
       
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800">
@@ -53,7 +53,7 @@ function CodeSandboxNode({ data, selected }: NodeProps) {
         </div>
       </div>
       
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-600 !w-3 !h-3 !border-2 !border-gray-900" />
+      <Handle type="source" position={Position.Bottom} className="!bg-gray-300 !w-3 !h-3 !border-2 !border-gray-900" />
     </div>
   );
 }

@@ -160,7 +160,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<NodeData>
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-800"
+        className="!bg-gray-300 !w-3 !h-3 !border-2 !border-gray-800"
       />
     </div>
   );

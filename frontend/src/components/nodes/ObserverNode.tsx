@@ -62,7 +62,7 @@ export default function ObserverNode({ data, selected }: NodeProps<NodeData>) {
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-800"
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-gray-800"
       />
     </div>
   );

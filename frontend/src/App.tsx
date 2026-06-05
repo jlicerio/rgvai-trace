@@ -55,20 +55,20 @@ import type { ParsedMessage } from './components/ParsedChatOutput';
 
 const SAVE_KEY = 'agentic-pipeline-graph';
 
-const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode }[] = [
-  { type: 'provider', label: 'Provider', icon: <Database size={14} /> },
-  { type: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
-  { type: 'browser', label: 'Browser', icon: <Globe size={14} /> },
-  { type: 'search', label: 'Search', icon: <SearchIcon size={14} /> },
-  { type: 'memory', label: 'Memory', icon: <Database size={14} /> },
-  { type: 'context', label: 'Context', icon: <FileText size={14} /> },
-  { type: 'thread', label: 'Thread', icon: <GitBranch size={14} /> },
-  { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} /> },
-  { type: 'subagent', label: 'Subagent', icon: <Bot size={14} /> },
-  { type: 'code_sandbox', label: 'Code', icon: <Code2 size={14} /> },
-  { type: 'mcp', label: 'MCP', icon: <Wrench size={14} /> },
-  { type: 'registry', label: 'Registry', icon: <FileJson size={14} /> },
-  { type: 'observer', label: 'Observer', icon: <Eye size={14} /> },
+const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode; order?: string }[] = [
+  { type: 'provider', label: 'Provider', icon: <Database size={14} />, order: '1st' },
+  { type: 'chat', label: 'Chat', icon: <MessageSquare size={14} />, order: '2nd' },
+  { type: 'browser', label: 'Browser', icon: <Globe size={14} />, order: 'tool' },
+  { type: 'search', label: 'Search', icon: <SearchIcon size={14} />, order: 'tool' },
+  { type: 'memory', label: 'Memory', icon: <Database size={14} />, order: 'tool' },
+  { type: 'context', label: 'Context', icon: <FileText size={14} />, order: 'tool' },
+  { type: 'thread', label: 'Thread', icon: <GitBranch size={14} />, order: 'flow' },
+  { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} />, order: 'tool' },
+  { type: 'subagent', label: 'Subagent', icon: <Bot size={14} />, order: 'tool' },
+  { type: 'code_sandbox', label: 'Code', icon: <Code2 size={14} />, order: 'tool' },
+  { type: 'mcp', label: 'MCP', icon: <Wrench size={14} />, order: 'tool' },
+  { type: 'registry', label: 'Registry', icon: <FileJson size={14} />, order: 'tool' },
+  { type: 'observer', label: 'Observer', icon: <Eye size={14} />, order: 'last' },
 ];
 
 function getDefaultData(type: NodeType) {
@@ -1250,13 +1250,22 @@ function AppInner() {
                   >
                     <span className="text-gray-400">{item.icon}</span>
                     <span>{item.label}</span>
-                    <Plus size={12} className="ml-auto text-gray-600" />
+                    {item.order && (
+                      <span className={`ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                        item.order === '1st' ? 'bg-gray-700 text-gray-300' :
+                        item.order === '2nd' ? 'bg-gray-700 text-gray-300' :
+                        item.order === 'last' ? 'bg-gray-700 text-gray-300' :
+                        'bg-gray-800 text-gray-500'
+                      }`}>
+                        {item.order}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
               <div className="p-3 border-t border-gray-800 text-gray-600 text-xs space-y-1">
-                <p>Drag nodes to canvas</p>
-                <p>Connect via handles</p>
+                <p>Drag nodes onto canvas, connect <span className="text-gray-500">●</span> → <span className="text-gray-300">○</span></p>
+                <p>Data flows top (input) → bottom (output)</p>
                 <p>Backspace to delete</p>
               </div>
             </>

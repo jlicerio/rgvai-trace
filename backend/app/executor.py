@@ -655,12 +655,12 @@ async def _handle_chat(
                     elif func_name == "browser_fetch":
                         try:
                             from app.tools import fetch_page
-                            url = arguments.get("url", "")
+                            fetch_url = arguments.get("url", "")
                             render_js = arguments.get("render_js", False)
-                            if not url:
+                            if not fetch_url:
                                 result_content = json.dumps({"error": "No URL provided for browser_fetch"})
                             else:
-                                tool_result = await fetch_page(url, render_js=render_js)
+                                tool_result = await fetch_page(fetch_url, render_js=render_js)
                                 result_content = json.dumps(tool_result)
                         except Exception as exc:
                             result_content = json.dumps({"error": str(exc)})

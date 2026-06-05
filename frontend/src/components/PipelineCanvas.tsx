@@ -4,6 +4,7 @@ import ReactFlow, {
   BackgroundVariant,
   Controls,
   MiniMap,
+  MarkerType,
   type Connection,
   type Node,
   type Edge,
@@ -83,6 +84,16 @@ export default function PipelineCanvas({
 
   return (
     <div className="w-full h-full relative">
+      {/* Flow direction indicator */}
+      <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 text-[10px] text-gray-600 bg-gray-900/80 px-2 py-1 rounded border border-gray-800 pointer-events-none select-none">
+        <span className="text-gray-500">Input</span>
+        <svg className="w-3 h-3 text-gray-500" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="2" r="1.5" fill="currentColor" className="text-gray-500" />
+          <line x1="6" y1="3.5" x2="6" y2="8.5" stroke="currentColor" strokeWidth="1.5" />
+          <polygon points="4.5,8 6,10.5 7.5,8" fill="currentColor" className="text-gray-300" />
+        </svg>
+        <span className="text-gray-300">Output</span>
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -103,6 +114,7 @@ export default function PipelineCanvas({
         defaultEdgeOptions={{
           style: { stroke: '#6b7280', strokeWidth: 2 },
           animated: true,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#6b7280', width: 15, height: 15 },
         }}
       >
         <Background
