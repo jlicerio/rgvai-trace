@@ -29,6 +29,7 @@ import {
   StepForward,
   PanelLeftClose,
   PanelRightClose,
+  GraduationCap,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -41,6 +42,7 @@ import { useProgression } from './hooks/useProgression';
 import { LESSONS, type Lesson } from './constants/lessons';
 import AuthModal from './components/AuthModal';
 import StepperModal from './components/StepperModal';
+import LearnModal from './components/LearnModal';
 import type { ExecutionStepResult, NodeType } from './types/pipeline';
 import type { ParsedMessage } from './components/ParsedChatOutput';
 
@@ -161,6 +163,7 @@ function AppInner() {
   const [stepperOpen, setStepperOpen] = useState(false);
   const [stepperLoading, setStepperLoading] = useState(false);
   const stepOrderRef = useRef<string[]>([]);
+  const [showLearn, setShowLearn] = useState(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -912,6 +915,15 @@ function AppInner() {
           </button>
 
           <button
+            onClick={() => setShowLearn(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 active:bg-gray-600 transition-colors border border-gray-700"
+            title="Open node reference documentation"
+          >
+            <GraduationCap size={14} />
+            Learn
+          </button>
+
+          <button
             onClick={handleSave}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 active:bg-gray-600 transition-colors border border-gray-700"
             title="Download pipeline JSON"
@@ -1188,6 +1200,7 @@ function AppInner() {
         onAbort={handleStepAbort}
         loading={stepperLoading}
       />
+      <LearnModal open={showLearn} onClose={() => setShowLearn(false)} />
     </div>
   );
 }
