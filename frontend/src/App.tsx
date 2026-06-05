@@ -33,6 +33,7 @@ import {
   FileText,
   GitBranch,
   Terminal,
+  Zap,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -185,6 +186,7 @@ function AppInner() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
+  const [gamificationEnabled, setGamificationEnabled] = useState(true);
   const [user, setUser] = useState<{ id: number; username: string } | null>(null);
 
   // Stepper state
@@ -936,7 +938,9 @@ function AppInner() {
   }, [setNodes, setEdges]);
 
   // Filter draggable sidebar items based on phase progression unlocks
-  const filteredSidebarItems = SIDEBAR_ITEMS.filter((item) => unlockedNodes.includes(item.type));
+  const filteredSidebarItems = SIDEBAR_ITEMS.filter((item) =>
+    !gamificationEnabled || unlockedNodes.includes(item.type)
+  );
 
   return (
     <div className="w-full h-screen bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
@@ -973,6 +977,20 @@ function AppInner() {
           >
             <StepForward size={14} />
             {stepperActive ? 'Step On' : 'Step Thru'}
+          </button>
+
+          {/* Gamification toggle */}
+          <button
+            onClick={() => setGamificationEnabled(g => !g)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+              gamificationEnabled
+                ? 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
+                : 'bg-yellow-900/20 text-yellow-600 border-yellow-800/40 hover:bg-yellow-900/30'
+            }`}
+            title={gamificationEnabled ? 'Free mode — all nodes unlocked, no progression' : 'Guided mode — phased lesson progression'}
+          >
+            {gamificationEnabled ? <GraduationCap size={14} /> : <Zap size={14} />}
+            {gamificationEnabled ? 'Guided' : 'Free'}
           </button>
 
           <button
@@ -1040,8 +1058,8 @@ function AppInner() {
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Phase Progression Sidebar */}
-        {sidebarOpen && (
+        {/* Phase Progression Sidebar — hidden in free mode */}
+        {gamificationEnabled && sidebarOpen && (
           <ProgressionSidebar
           currentPhase={currentPhase}
           completedLessons={completedLessons}
