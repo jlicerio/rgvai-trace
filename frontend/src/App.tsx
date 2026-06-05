@@ -54,6 +54,8 @@ import LearnModal from './components/LearnModal';
 import CodeSandboxWorkspace from './components/CodeSandboxWorkspace';
 import type { ExecutionStepResult, NodeType } from './types/pipeline';
 import type { ParsedMessage } from './components/ParsedChatOutput';
+import { sanitizeForSpeech, extractChatText } from './utils/speechUtils';
+import { useSpeechManager } from './hooks/useSpeechManager';
 
 const SAVE_KEY = 'agentic-pipeline-graph';
 
@@ -228,6 +230,9 @@ function AppInner() {
     startLesson,
     resetProgression,
   } = useProgression();
+
+  // Shared speech manager for TTS auto-play
+  const { speak: ttsSpeak } = useSpeechManager();
 
   // Load persisted graph
   const [savedGraph, setSavedGraph] = useLocalStorage<{
@@ -404,6 +409,16 @@ function AppInner() {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', role: 'Code Writer', content: 'Subagent sandbox mock: task complete.', tool_calls_made: 2, skills_used: ['python', 'shell'] };
           } else if (node.type === 'code_sandbox') {
             response = { status: 'workspace_ready', language: 'python', fileCount: 1, activeFile: 'main.py', note: 'Code execution happens in-browser via Pyodide WASM.' };
+          } else if (node.type === 'tts') {
+            const chatUpstream = nodes.find((n) =>
+              edges.some((e) => e.source === n.id && e.target === node.id && n.data?.type === 'chat')
+            );
+            const chatText = chatUpstream
+              ? (chatUpstream.data as any)?.config?.messages?.slice(-1)?.[0]?.content || 'Speech response'
+              : (node.data as any)?.config?.text || 'Hello from TTS';
+            response = { status: 'speech_ready', text: chatText, voice: 'default', rate: 1.0, pitch: 1.0, note: 'Speech synthesis runs in-browser.' };
+          } else if (node.type === 'local_model') {
+            response = { status: 'model_configured', modelId: (node.data as any)?.config?.modelId || 'Qwen2.5-0.5B', note: 'Model runs in-browser via WebLLM.' };
           } else {
             response = { status: 'success' };
           }
@@ -437,6 +452,20 @@ function AppInner() {
       }
 
       setResults(data);
+
+      // Auto-speak: find TTS nodes with autoSpeak enabled and speak the response
+      const ttsNodes = nodes.filter((n) => n.data?.type === 'tts');
+      for (const ttsNode of ttsNodes) {
+        const ttsConfig = (ttsNode.data as any)?.config || {};
+        if (ttsConfig.autoSpeak === false) continue;
+        if (ttsConfig.engine === 'webgpu') continue; // WebGPU TTS needs model loaded in component
+        const nodeData = data.find((r) => r.stepId === ttsNode.id);
+        if (!nodeData) continue;
+        const rawText = extractChatText(data, ttsNode.id) || ttsConfig.text || '';
+        if (!rawText) continue;
+        const cleanText = sanitizeForSpeech(rawText);
+        ttsSpeak(cleanText, ttsConfig.rate || 1.0, ttsConfig.pitch || 1.0, ttsConfig.voice);
+      }
 
       // Populate observer nodes with captured data
       if (data.length > 0) {
