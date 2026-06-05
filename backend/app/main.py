@@ -1,9 +1,9 @@
 """
-FastAPI application for the Agentic Pipeline Builder.
+FastAPI application for Trace.
 
 Serves the frontend static files and provides API endpoints for
 executing pipelines, generating curl commands, listing MCP tools,
-and health checks.
+memory storage, and health checks.
 """
 import os
 from pathlib import Path

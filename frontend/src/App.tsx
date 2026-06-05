@@ -30,7 +30,6 @@ import {
   StepForward,
   PanelLeftClose,
   PanelRightClose,
-  MemoryStick,
   FileText,
   GitBranch,
 } from 'lucide-react';

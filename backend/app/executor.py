@@ -3,6 +3,17 @@ Pipeline execution engine.
 
 Walks a PipelineGraph in topological order, executing each node
 according to its type and collecting results.
+
+Supported node types:
+  * **provider** — records endpoint + model context, no call made.
+  * **chat** — calls the LLM provider API (OpenAI-compatible)
+  * **mcp** — calls an MCP tool on the configured server
+  * **browser** — fetches a URL and extracts text content
+  * **search** — performs a web search via DuckDuckGo
+  * **memory** — reads/writes to a persistent key-value store
+  * **context** — injects context text into downstream Chat nodes
+  * **thread** — collects results from downstream nodes (parallel/sequential)
+  * **observer** — captures request/response from preceding nodes
 """
 import asyncio
 import json
