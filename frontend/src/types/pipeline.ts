@@ -1,4 +1,4 @@
-export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread';
+export type NodeType = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill';
 
 export interface Position {
   x: number;
@@ -53,10 +53,15 @@ export interface CaptureEntry {
   timestamp: string;
 }
 
+export interface SkillConfig {
+  label: string;
+  enabledSkills: string[];
+}
+
 export type NodeData = {
   label: string;
   type: NodeType;
-  config: ProviderConfig | ChatConfig | MCPConfig | ObserverConfig | Record<string, any>;
+  config: ProviderConfig | ChatConfig | MCPConfig | ObserverConfig | SkillConfig | Record<string, any>;
 };
 
 export interface PipelineNode {

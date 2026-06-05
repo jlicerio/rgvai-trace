@@ -593,5 +593,77 @@ export const LESSONS: Lesson[] = [
         ]
       }
     }
+  },
+  {
+    id: 'lesson-9-skills',
+    phase: 4,
+    title: 'Environment Skills',
+    description: 'Unlock Env Skills. Use the Skill node to declare what tools and runtimes your agent has access to — enabling the LLM to choose the right tool for each task.',
+    difficulty: 'Intermediate',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'chat-1',
+          type: 'chat',
+          position: { x: 300, y: 100 },
+          data: {
+            label: 'Skill-Aware Chat',
+            type: 'chat',
+            config: { label: 'Skill-Aware Chat', systemPrompt: 'You have shell, git, docker, python, node, curl, ssh, make, jq, and grep. Use them as needed.', messages: [{ role: 'user', content: 'What environment skills do I have?' }] }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 580, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'chat-1' },
+        { id: 'e2', source: 'chat-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-skill', text: 'Add a Skill Node to the canvas.', type: 'node_exists', targetType: 'skill' },
+      { id: 'connect-skill', text: 'Connect Skill Node to Chat Node.', type: 'edge_exists', sourceType: 'skill', targetType: 'chat' },
+      { id: 'run-success', text: 'Run the skill-aware pipeline.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag an "Env Skills" node onto the canvas — it has a preset list of environment tools.',
+      'Connect the Skill node to the Chat node so the LLM knows what tools are available.',
+      'You can toggle individual skills on/off to control the agent environment.',
+      'Press Run to see the skill context flow into the Chat node.'
+    ],
+    sandboxData: {
+      expectedInput: 'skills',
+      mockResponse: {
+        status: 'success',
+        enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'],
+        count: 10,
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Your agent has 10 environment skills available: Shell, Git, Docker, Python, Node.js, cURL, SSH, Make, jq, and grep. These tools span core CLI capabilities, development tools, runtimes, network utilities, and text processing — everything needed to build, debug, and deploy software from the command line.'
+            }
+          }
+        ]
+      }
+    }
   }
 ];

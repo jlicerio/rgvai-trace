@@ -13,6 +13,7 @@ class NodeType(str, Enum):
     MEMORY = "memory"
     CONTEXT = "context"
     THREAD = "thread"
+    SKILL = "skill"
 
 
 class Position(BaseModel):

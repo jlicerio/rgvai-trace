@@ -21,6 +21,7 @@ import RegistryNode from './nodes/RegistryNode';
 import MemoryNode from './nodes/MemoryNode';
 import ContextNode from './nodes/ContextNode';
 import ThreadNode from './nodes/ThreadNode';
+import SkillNode from './nodes/SkillNode';
 
 const nodeTypes = {
   provider: ProviderNode,
@@ -33,6 +34,7 @@ const nodeTypes = {
   memory: MemoryNode,
   context: ContextNode,
   thread: ThreadNode,
+  skill: SkillNode,
 };
 
 interface PipelineCanvasProps {

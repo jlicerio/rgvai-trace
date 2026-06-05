@@ -29,9 +29,9 @@ export function useProgression() {
   const getUnlockedNodeTypes = useCallback((phase: number): string[] => {
     const types = ['provider', 'chat', 'observer']; // Phase 1
     if (phase >= 2) types.push('search');
-    if (phase >= 3) types.push('mcp');
-    if (phase >= 4) types.push('browser');
-    if (phase >= 5) types.push('registry');
+    if (phase >= 3) { types.push('mcp'); types.push('memory'); } // lesson-6 Memory
+    if (phase >= 4) { types.push('browser'); types.push('context'); types.push('skill'); } // lesson-7 Context, lesson-9 Skills
+    if (phase >= 5) { types.push('registry'); types.push('thread'); } // lesson-8 Threads
     return types;
   }, []);
 

@@ -10,10 +10,11 @@ import {
   FileText,
   GitBranch,
   GraduationCap,
+  Terminal,
   X,
 } from 'lucide-react';
 
-type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread';
+type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill';
 
 const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'provider', label: 'Provider', icon: <Database size={16} /> },
@@ -26,6 +27,7 @@ const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'memory', label: 'Memory', icon: <Database size={16} /> },
   { id: 'context', label: 'Context', icon: <FileText size={16} /> },
   { id: 'thread', label: 'Thread', icon: <GitBranch size={16} /> },
+  { id: 'skill', label: 'Env Skills', icon: <Terminal size={16} /> },
 ];
 
 function SectionHeading({ label }: { label: string }) {
@@ -407,6 +409,33 @@ function ThreadContent() {
   );
 }
 
+function SkillContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Skill node defines the environment capabilities available to your agent. Think of it as a toolbox — you tell the LLM what tools (shell, git, docker, Python, etc.) are available in its execution environment, and it knows how to use them." />
+      <KeyConcepts rows={[
+        { concept: 'Environment Skills', definition: 'The set of tools and runtimes available in the agent execution environment' },
+        { concept: 'Skill Toggling', definition: 'Each skill can be enabled or disabled to control what the agent can do' },
+        { concept: 'Context Injection', definition: 'Enabled skills are injected into the Chat node system prompt as available capabilities' },
+        { concept: 'Categories', definition: 'Skills are grouped by domain: Core, Dev Tools, Runtimes, Network, and Utilities' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'When you connect a Skill node upstream of a Chat node, the list of enabled skills gets injected into the LLM system prompt as context. This tells the model exactly what tools it has available, enabling it to request tool calls that match the actual environment.',
+        'Each skill represents a real capability in the environment. For example, enabling Shell allows the agent to run bash commands; enabling Git lets it perform version control operations. The Skill node acts as a declarative capability manifest — the agent knows what it can use, and the system knows what to expect.',
+        'Skills are organized into categories: Core (shell), Dev Tools (git, docker, make), Runtimes (python, node), Network (curl, ssh), and Utilities (jq, grep). This categorization helps both the LLM and the human understand the agent capabilities at a glance.',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Env Skills'", description: 'Display label on the canvas' },
+        { field: 'enabledSkills', type: 'string[]', default: "[all skills]", description: 'Array of skill IDs that are currently enabled' },
+      ]} />
+      <ExamplePipeline text="Provider → Skill → Chat → Observer. Skill tells the Chat node what tools the agent can use in its environment." />
+      <ExampleCurl code={`# Skill node registers environment capabilities:
+#   Shell, Git, Docker, Python, Node.js,
+#   cURL, SSH, Make, jq, grep`} />
+    </div>
+  );
+}
+
 const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   provider: <ProviderContent />,
   chat: <ChatContent />,
@@ -418,6 +447,7 @@ const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   memory: <MemoryContent />,
   context: <ContextContent />,
   thread: <ThreadContent />,
+  skill: <SkillContent />,
 };
 
 interface LearnModalProps {

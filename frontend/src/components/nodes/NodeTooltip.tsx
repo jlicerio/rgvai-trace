@@ -47,6 +47,10 @@ const TOOLTIPS: Record<string, TooltipContent> = {
     what: 'Controls branching execution mode. In parallel mode all downstream nodes run concurrently; in sequential mode they run one by one.',
     concept: 'Threading enables parallel execution, branching, and fan-out/fan-in patterns in agentic pipelines. Parallel execution speeds up independent tasks, while sequential execution maintains order for dependent operations — giving fine-grained control over workflow orchestration.',
   },
+  skill: {
+    what: 'Defines which environment tools and capabilities the agent has access to — shell, git, docker, Python, curl, and more. Toggle skills on/off to control the agent environment.',
+    concept: 'Environment skills tell the LLM what tools are available in its execution environment. By explicitly defining the available skills, the agent can choose the right tool for each task — just like a human developer knowing what commands are available in their terminal.',
+  },
 };
 
 export default function NodeTooltip({ nodeType, compact = false }: { nodeType: string; compact?: boolean }) {

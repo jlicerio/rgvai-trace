@@ -13,6 +13,7 @@ Supported node types:
   * **memory** — reads/writes to a persistent key-value store
   * **context** — injects context text into downstream Chat nodes
   * **thread** — collects results from downstream nodes (parallel/sequential)
+  * **skill** — returns available environment skills as context
   * **observer** — captures request/response from preceding nodes
 """
 import asyncio
@@ -120,7 +121,7 @@ async def execute_pipeline(
 
         # Skip if upstream dependency has an error
         skip_node = False
-        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD):
+        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD, NodeType.SKILL):
             for edge in pipeline.edges:
                 if edge.target == node.id and edge.source in results:
                     upstream = results[edge.source]
@@ -155,6 +156,8 @@ async def execute_pipeline(
             result = _handle_context(node)
         elif node.type == NodeType.THREAD:
             result = await _handle_thread(node, pipeline.edges, node_map, results)
+        elif node.type == NodeType.SKILL:
+            result = _handle_skill(node)
         else:
             result = ExecutionStepResult(
                 stepId=node.id,
@@ -913,7 +916,41 @@ async def _handle_thread(
                 "mode": "sequential",
                 "results": sequential_results,
             },
-        )
+        )  # end of _handle_thread
+
+
+PRESET_SKILLS = [
+    {"id": "shell", "name": "Shell", "description": "Bash/Zsh command-line interface — run scripts, pipe output, file operations", "category": "core"},
+    {"id": "git", "name": "Git", "description": "Version control — clone, commit, push, branch, merge", "category": "dev"},
+    {"id": "docker", "name": "Docker", "description": "Container management — build, run, compose, exec", "category": "dev"},
+    {"id": "python", "name": "Python", "description": "Python 3 runtime with pip — execute .py scripts, install packages", "category": "runtime"},
+    {"id": "node", "name": "Node.js", "description": "JavaScript runtime with npm — run .js/.ts, install packages", "category": "runtime"},
+    {"id": "curl", "name": "cURL", "description": "HTTP client — GET/POST/PUT/DELETE requests to any URL", "category": "net"},
+    {"id": "ssh", "name": "SSH", "description": "Remote access — connect to servers, tunnel ports", "category": "net"},
+    {"id": "make", "name": "Make", "description": "Build tool — run Makefile targets for compilation and automation", "category": "dev"},
+    {"id": "jq", "name": "jq", "description": "JSON processor — filter, transform, query JSON data from CLI", "category": "tool"},
+    {"id": "grep", "name": "grep/rg", "description": "Text search — find patterns across files with ripgrep or grep", "category": "tool"},
+]
+
+
+def _handle_skill(node: PipelineNode) -> ExecutionStepResult:
+    """Handle a skill node: return the list of enabled environment skills as context."""
+    config = node.data.config
+    enabled_skills = config.get("enabledSkills", [s["id"] for s in PRESET_SKILLS])
+    selected = [s for s in PRESET_SKILLS if s["id"] in enabled_skills]
+    summary = ", ".join(s["name"] for s in selected)
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.SKILL.value,
+        curl=f"# Environment skills ({len(selected)} enabled): {summary}",
+        request={"enabledSkills": enabled_skills},
+        response={
+            "status": "skills_registered",
+            "all_skills": PRESET_SKILLS,
+            "enabled": selected,
+            "count": len(selected),
+        },
+    )
 
 
 def _handle_observer(

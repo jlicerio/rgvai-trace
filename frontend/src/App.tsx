@@ -32,6 +32,7 @@ import {
   PanelRightClose,
   FileText,
   GitBranch,
+  Terminal,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -58,6 +59,7 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode }[] 
   { type: 'memory', label: 'Memory', icon: <Database size={14} /> },
   { type: 'context', label: 'Context', icon: <FileText size={14} /> },
   { type: 'thread', label: 'Thread', icon: <GitBranch size={14} /> },
+  { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} /> },
   { type: 'mcp', label: 'MCP', icon: <Wrench size={14} /> },
   { type: 'registry', label: 'Registry', icon: <FileJson size={14} /> },
   { type: 'observer', label: 'Observer', icon: <Eye size={14} /> },
@@ -135,6 +137,12 @@ function getDefaultData(type: NodeType) {
         label: 'Thread',
         type: 'thread',
         config: { label: 'Thread', mode: 'parallel', branches: [], error: '' },
+      };
+    case 'skill':
+      return {
+        label: 'Env Skills',
+        type: 'skill',
+        config: { label: 'Env Skills', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'] },
       };
   }
 }
@@ -323,6 +331,8 @@ function AppInner() {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', content: 'Injected context content.', position: 'prepend_system' };
           } else if (node.type === 'thread') {
             response = activeLesson?.sandboxData?.mockResponse || { status: 'success', mode: 'parallel', branchResults: [{ branchId: 'b1', result: 'Branch 1 complete' }] };
+          } else if (node.type === 'skill') {
+            response = activeLesson?.sandboxData?.mockResponse || { status: 'success', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'], count: 10 };
           } else {
             response = { status: 'success' };
           }
@@ -461,6 +471,8 @@ function AppInner() {
             mode: 'parallel',
             branchResults: [{ branchId: 'b1', result: 'Branch 1 complete' }],
           };
+        } else if (nodeType === 'skill') {
+          response = activeLesson?.sandboxData?.mockResponse || { status: 'success', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'], count: 10 };
         } else {
           response = { status: 'success' };
         }
