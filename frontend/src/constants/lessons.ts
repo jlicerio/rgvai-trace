@@ -598,7 +598,7 @@ export const LESSONS: Lesson[] = [
     id: 'lesson-9-skills',
     phase: 4,
     title: 'Environment Skills',
-    description: 'Unlock Env Skills. Use the Skill node to declare what tools and runtimes your agent has access to — enabling the LLM to choose the right tool for each task.',
+    description: 'Unlock Skills. Use the Skill node to declare what tools and runtimes your agent has access to — enabling the LLM to choose the right tool for each task.',
     difficulty: 'Intermediate',
     initialState: {
       nodes: [
@@ -644,7 +644,7 @@ export const LESSONS: Lesson[] = [
       { id: 'run-success', text: 'Run the skill-aware pipeline.', type: 'execution_completed' }
     ],
     hints: [
-      'Drag an "Env Skills" node onto the canvas — it has a preset list of environment tools.',
+      'Drag an "Skills" node onto the canvas — it has a preset list of environment tools.',
       'Connect the Skill node to the Chat node so the LLM knows what tools are available.',
       'You can toggle individual skills on/off to control the agent environment.',
       'Press Run to see the skill context flow into the Chat node.'

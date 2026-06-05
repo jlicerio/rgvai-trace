@@ -46,7 +46,7 @@ function SkillNode({ data, selected }: NodeProps) {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800">
         <Terminal size={14} className="text-gray-400" />
         <span className="text-xs font-semibold text-gray-200 uppercase tracking-wider">
-          {data.label || 'Env Skills'}
+          {data.label || 'Skills'}
         </span>
         <span className="ml-auto text-[10px] font-mono text-gray-500">
           {enabledCount}/{totalCount}

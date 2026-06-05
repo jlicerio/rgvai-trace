@@ -67,7 +67,7 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode; ord
   { type: 'memory', label: 'Memory', icon: <Database size={14} />, order: 'tool' },
   { type: 'context', label: 'Context', icon: <FileText size={14} />, order: 'prep' },
   { type: 'thread', label: 'Thread', icon: <GitBranch size={14} />, order: 'flow' },
-  { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} />, order: 'tool' },
+  { type: 'skill', label: 'Skills', icon: <Terminal size={14} />, order: 'tool' },
   { type: 'subagent', label: 'Subagent', icon: <Bot size={14} />, order: 'tool' },
   { type: 'tts', label: 'TTS', icon: <Volume2 size={14} />, order: 'last' },
   { type: 'local_model', label: 'Local Model', icon: <Cpu size={14} />, order: 'tool' },
@@ -152,9 +152,9 @@ function getDefaultData(type: NodeType) {
       };
     case 'skill':
       return {
-        label: 'Env Skills',
+        label: 'Skills',
         type: 'skill',
-        config: { label: 'Env Skills', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'] },
+        config: { label: 'Skills', enabledSkills: ['shell', 'git', 'docker', 'python', 'node', 'curl', 'ssh', 'make', 'jq', 'grep'] },
       };
     case 'subagent':
       return {
