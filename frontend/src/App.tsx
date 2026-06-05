@@ -1339,6 +1339,7 @@ function AppInner() {
               nodes={nodes}
               edges={edges}
               onExecute={handleChatExecute}
+              onSpeak={(text, cfg) => ttsSpeak(text, cfg?.rate || 1.0, cfg?.pitch || 1.0, cfg?.voice)}
             />
           )}
         </aside>

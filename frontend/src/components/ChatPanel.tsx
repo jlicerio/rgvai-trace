@@ -3,14 +3,16 @@ import { Send, MessageSquare, Trash2 } from 'lucide-react';
 import ParsedChatOutput from './ParsedChatOutput';
 import type { ParsedMessage } from './ParsedChatOutput';
 import type { Node, Edge } from 'reactflow';
+import { sanitizeForSpeech } from '../utils/speechUtils';
 
 interface ChatPanelProps {
   nodes: Node[];
   edges: Edge[];
   onExecute: (userMessage: string) => Promise<ParsedMessage[]>;
+  onSpeak?: (text: string, config?: any) => void;
 }
 
-export default function ChatPanel({ nodes, edges, onExecute }: ChatPanelProps) {
+export default function ChatPanel({ nodes, edges, onExecute, onSpeak }: ChatPanelProps) {
   const [messages, setMessages] = useState<ParsedMessage[]>([
     {
       id: 'welcome',
@@ -46,6 +48,22 @@ export default function ChatPanel({ nodes, edges, onExecute }: ChatPanelProps) {
     try {
       const results = await onExecute(text);
       setMessages((prev) => [...prev, ...results]);
+
+      // Auto-speak: if a TTS node with autoSpeak is connected, speak the response
+      if (onSpeak) {
+        const ttsNodes = nodes.filter((n) => n.data?.type === 'tts');
+        for (const ttsNode of ttsNodes) {
+          const cfg = (ttsNode.data as any)?.config || {};
+          if (cfg.autoSpeak === false) continue;
+          if (cfg.engine === 'webgpu') continue;
+          // Get the last assistant message content
+          const lastAssistant = results.filter((r) => r.role === 'assistant').pop();
+          const rawText = lastAssistant?.content || cfg.text || text;
+          if (!rawText) continue;
+          const cleanText = sanitizeForSpeech(rawText);
+          onSpeak(cleanText, cfg);
+        }
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
