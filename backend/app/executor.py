@@ -135,7 +135,7 @@ async def execute_pipeline(
 
         # Skip if upstream dependency has an error
         skip_node = False
-        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD, NodeType.SKILL, NodeType.SUBAGENT, NodeType.CODE_SANDBOX):
+        if node.type in (NodeType.CHAT, NodeType.MCP, NodeType.BROWSER, NodeType.SEARCH, NodeType.OBSERVER, NodeType.MEMORY, NodeType.CONTEXT, NodeType.THREAD, NodeType.SKILL, NodeType.SUBAGENT, NodeType.CODE_SANDBOX, NodeType.TTS, NodeType.LOCAL_MODEL):
             for edge in pipeline.edges:
                 if edge.target == node.id and edge.source in results:
                     upstream = results[edge.source]
@@ -196,6 +196,10 @@ async def execute_pipeline(
             result = await _handle_subagent(node, auth_header, pipeline.edges, node_map)
         elif node.type == NodeType.CODE_SANDBOX:
             result = _handle_code_sandbox(node)
+        elif node.type == NodeType.TTS:
+            result = _handle_tts(node, results, pipeline.edges)
+        elif node.type == NodeType.LOCAL_MODEL:
+            result = _handle_local_model(node)
         else:
             result = ExecutionStepResult(
                 stepId=node.id,
@@ -1549,6 +1553,92 @@ def _handle_code_sandbox(node: PipelineNode) -> ExecutionStepResult:
             "fileCount": len(file_list),
             "activeFile": active_file,
             "note": "Code execution happens in-browser via Pyodide WASM. Run from the frontend.",
+        },
+    )
+
+
+def _handle_tts(
+    node: PipelineNode,
+    previous_results: dict[str, ExecutionStepResult],
+    edges: list[PipelineEdge],
+) -> ExecutionStepResult:
+    """Handle a TTS node — speech synthesis is client-side via Web Speech API.
+
+    The backend passes through the text from the upstream Chat node so the
+    frontend can call the Web Speech API to speak it.
+    """
+    config = node.data.config
+    voice = config.get("voice", "default")
+    rate = config.get("rate", 1.0)
+    pitch = config.get("pitch", 1.0)
+
+    # Find upstream Chat node text
+    text = ""
+    for edge in edges:
+        if edge.target == node.id and edge.source in previous_results:
+            upstream = previous_results[edge.source]
+            if upstream.response:
+                if isinstance(upstream.response, dict):
+                    resp = upstream.response
+                    if "choices" in resp:
+                        choices = resp["choices"]
+                        if choices and isinstance(choices, list):
+                            msg = choices[0].get("message", {})
+                            text = msg.get("content", "")
+                    elif "content" in resp:
+                        text = resp.get("content", "")
+                    elif "text" in resp:
+                        text = resp.get("text", "")
+
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.TTS.value,
+        curl=f"# TTS: {voice} @ rate={rate} pitch={pitch}",
+        request={
+            "voice": voice,
+            "rate": rate,
+            "pitch": pitch,
+            "text": text,
+            "config": config,
+        },
+        response={
+            "status": "speech_ready",
+            "voice": voice,
+            "rate": rate,
+            "pitch": pitch,
+            "text": text,
+            "note": "Speech synthesis runs in-browser via Web Speech API. Frontend handles playback.",
+        },
+    )
+
+
+def _handle_local_model(node: PipelineNode) -> ExecutionStepResult:
+    """Handle a Local Model node — inference is client-side via WebLLM (WebGPU).
+
+    The backend registers the model config so the frontend can load and run
+    inference entirely in the browser.
+    """
+    config = node.data.config
+    model_id = config.get("modelId", "")
+    system_prompt = config.get("systemPrompt", "")
+    temperature = config.get("temperature", 0.7)
+    max_tokens = config.get("maxTokens", 2048)
+
+    return ExecutionStepResult(
+        stepId=node.id,
+        nodeType=NodeType.LOCAL_MODEL.value,
+        curl=f"# Local Model: {model_id} | t={temperature} max_tokens={max_tokens}",
+        request={
+            "modelId": model_id,
+            "systemPrompt": system_prompt,
+            "temperature": temperature,
+            "maxTokens": max_tokens,
+            "config": config,
+        },
+        response={
+            "status": "model_configured",
+            "modelId": model_id,
+            "note": "Model runs in-browser via WebLLM (WebGPU). Inference is handled by the frontend.",
         },
     )
 

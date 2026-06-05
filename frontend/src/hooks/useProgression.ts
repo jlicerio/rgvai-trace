@@ -31,7 +31,7 @@ export function useProgression() {
     if (phase >= 2) types.push('search');
     if (phase >= 3) { types.push('mcp'); types.push('memory'); } // lesson-6 Memory
     if (phase >= 4) { types.push('browser'); types.push('context'); types.push('skill'); } // lesson-7 Context, lesson-9 Skills
-    if (phase >= 5) { types.push('registry'); types.push('thread'); types.push('subagent'); types.push('code_sandbox'); } // lesson-8 Threads, lesson-10 Subagent, lesson-12 Code Sandbox
+    if (phase >= 5) { types.push('registry'); types.push('thread'); types.push('subagent'); types.push('code_sandbox'); types.push('tts'); types.push('local_model'); } // lesson-8 Threads, lesson-10 Subagent, lesson-12 Code Sandbox, TTS, Local Model
     return types;
   }, []);
 

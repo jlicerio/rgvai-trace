@@ -16,6 +16,8 @@ class NodeType(str, Enum):
     SKILL = "skill"
     CODE_SANDBOX = "code_sandbox"
     SUBAGENT = "subagent"
+    TTS = "tts"
+    LOCAL_MODEL = "local_model"
 
 
 class Position(BaseModel):

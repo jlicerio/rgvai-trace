@@ -12,10 +12,12 @@ import {
   GraduationCap,
   Terminal,
   Bot,
+  Volume2,
+  Cpu,
   X,
 } from 'lucide-react';
 
-type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill' | 'subagent';
+type NodeTab = 'provider' | 'chat' | 'mcp' | 'observer' | 'browser' | 'search' | 'registry' | 'memory' | 'context' | 'thread' | 'skill' | 'subagent' | 'tts' | 'local_model';
 
 const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'provider', label: 'Provider', icon: <Database size={16} /> },
@@ -30,6 +32,8 @@ const TABS: { id: NodeTab; label: string; icon: React.ReactNode }[] = [
   { id: 'thread', label: 'Thread', icon: <GitBranch size={16} /> },
   { id: 'skill', label: 'Env Skills', icon: <Terminal size={16} /> },
   { id: 'subagent', label: 'Subagent', icon: <Bot size={16} /> },
+  { id: 'tts', label: 'TTS', icon: <Volume2 size={16} /> },
+  { id: 'local_model', label: 'Local Model', icon: <Cpu size={16} /> },
 ];
 
 function SectionHeading({ label }: { label: string }) {
@@ -470,6 +474,67 @@ function SubagentContent() {
   );
 }
 
+function TTSContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The TTS (Text-to-Speech) node speaks text aloud using your browser&rsquo;s built-in speech synthesis. Connect it after a Chat node to hear the LLM&rsquo;s responses, or type text directly to preview any voice. No API keys or external services needed — everything runs locally in your browser via the Web Speech API." />
+      <KeyConcepts rows={[
+        { concept: 'Web Speech API', definition: 'Browser-native speech synthesis — works offline, no API keys needed' },
+        { concept: 'Voice Selection', definition: 'Choose from your system&rsquo;s installed voices (varies by OS and browser)' },
+        { concept: 'Rate & Pitch', definition: 'Control how fast (0.5x-2x) and how high/low (0.5-2.0) the voice sounds' },
+        { concept: 'Auto-speak', definition: 'When enabled, the TTS node automatically speaks Chat responses during pipeline execution' },
+        { concept: 'Pipeline & Standalone', definition: 'Works as a downstream node from Chat, or standalone with typed text' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'When connected downstream of a Chat node, the TTS node receives the LLM response text during pipeline execution. If auto-speak is enabled, the frontend automatically calls the Web Speech API with your configured voice, rate, and pitch settings — the response is spoken aloud immediately.',
+        'In standalone mode, you can type any text and click the Test button to preview how it sounds with your chosen voice settings. This is useful for testing voices, adjusting speed, or creating voiceover content.',
+        'The Web Speech API works entirely in your browser with no server-side processing. Every modern desktop and mobile browser supports it, making this the simplest way to add speech output to any pipeline.',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'TTS'", description: 'Display label on the canvas' },
+        { field: 'text', type: 'string', default: "''", description: 'Text to speak (optional — received from Chat node when connected)' },
+        { field: 'voice', type: 'string', default: "'default'", description: 'Voice name from system speech synthesis' },
+        { field: 'rate', type: 'number', default: '1.0', description: 'Speech rate (0.5 = slow, 1.0 = normal, 2.0 = fast)' },
+        { field: 'pitch', type: 'number', default: '1.0', description: 'Voice pitch (0.5 = low, 1.0 = normal, 2.0 = high)' },
+        { field: 'autoSpeak', type: 'boolean', default: 'true', description: 'Automatically speak Chat responses during pipeline execution' },
+      ]} />
+      <ExamplePipeline text="Provider → Chat → TTS → Observer. Chat generates a response, TTS speaks it aloud via Web Speech API." />
+      <ExampleCurl code={`# TTS runs entirely in-browser via the Web Speech API.
+# No curl equivalent — speech synthesis is client-side only.`} />
+    </div>
+  );
+}
+
+function LocalModelContent() {
+  return (
+    <div className="space-y-4">
+      <WhatItIs text="The Local Model node runs a small LLM directly in your browser using WebGPU acceleration. No server, no API key, no cloud dependency — the model downloads once (cached in IndexedDB) and runs entirely on your GPU. Perfect for testing, education, offline use, and privacy-sensitive applications." />
+      <KeyConcepts rows={[
+        { concept: 'WebGPU', definition: 'Browser GPU API that enables running ML models directly on your GPU' },
+        { concept: 'WebLLM', definition: 'MLC AI library that compiles and runs LLMs in the browser via WebGPU' },
+        { concept: 'On-Device Inference', definition: 'All computation happens locally on your machine — zero server calls' },
+        { concept: 'Model Cache', definition: 'Downloaded models are cached in IndexedDB for reuse across sessions' },
+        { concept: 'Quantized Models', definition: 'Models use q4f16 quantization — 4-bit weights for small download size' },
+      ]} />
+      <HowItWorks paragraphs={[
+        'Select a model from the dropdown and click "Load Model." The first load downloads the model (~400MB to ~2.5GB depending on the model) via WebGPU. Progress is shown in the node. Once cached, subsequent loads are nearly instant.',
+        'After loading, type a prompt and click Generate. The model runs inference entirely in your browser using WebGPU acceleration. The response appears in the node&rsquo;s output panel. You can adjust temperature and max tokens to control generation behavior.',
+        'Available models range from Qwen 0.5B (~400MB, fastest) to Phi-3 Mini 3.8B (~2.5GB, most capable). All use q4f16 quantization for efficient download and inference. WebGPU Browser support: Chrome 113+, Edge 113+, Opera 100+ (Safari and Firefox support coming).',
+      ]} />
+      <ConfigurationFields fields={[
+        { field: 'label', type: 'string', default: "'Local Model'", description: 'Display label on the canvas' },
+        { field: 'modelId', type: 'string', default: "''", description: 'WebLLM model identifier (e.g., Qwen2.5-0.5B-Instruct-q4f16_1-MLC)' },
+        { field: 'systemPrompt', type: 'string', default: "'You are a helpful AI assistant.'", description: 'System prompt for the local model' },
+        { field: 'temperature', type: 'number', default: '0.7', description: 'Response randomness (0.0 = deterministic, 2.0 = very creative)' },
+        { field: 'maxTokens', type: 'number', default: '2048', description: 'Maximum response length in tokens' },
+      ]} />
+      <ExamplePipeline text="Local Model (standalone with typed prompt) — or — Provider → Chat → Local Model (as a verification node). Best used alone for local inference testing." />
+      <ExampleCurl code={`# Local inference runs entirely in-browser via WebLLM.
+# No curl equivalent — the model runs locally on your GPU.`} />
+    </div>
+  );
+}
+
 const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   provider: <ProviderContent />,
   chat: <ChatContent />,
@@ -483,6 +548,8 @@ const TAB_CONTENT: Record<NodeTab, React.ReactNode> = {
   thread: <ThreadContent />,
   skill: <SkillContent />,
   subagent: <SubagentContent />,
+  tts: <TTSContent />,
+  local_model: <LocalModelContent />,
 };
 
 interface LearnModalProps {

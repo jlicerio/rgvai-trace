@@ -59,6 +59,14 @@ const TOOLTIPS: Record<string, TooltipContent> = {
     what: 'Spawns an autonomous child agent with its own role, tools, and skills. Configure the agent role, system prompt, task, and max tool-calling iterations.',
     concept: 'Subagent nodes enable hierarchical agent architectures. A parent pipeline can delegate complex subtasks to specialized child agents that each have their own system prompt, tool access, and environment skills — mirroring how human teams divide labor among specialists.',
   },
+  tts: {
+    what: 'Speaks text aloud using your browser\'s built-in speech synthesis. Connect after a Chat node to hear responses, or type text directly.',
+    concept: 'Text-to-Speech (TTS) makes agentic systems audible. By adding speech output, you can build voice-enabled applications, accessibility features, and multimodal experiences — all running locally in the browser via the Web Speech API with no external services needed.',
+  },
+  local_model: {
+    what: 'Runs a small LLM directly in your browser using WebGPU. No server needed — the model downloads once and runs entirely on your GPU.',
+    concept: 'Local inference via WebLLM brings AI models to the browser using WebGPU acceleration. Models like Qwen 0.5B and TinyLlama 1.1B run entirely on-device, enabling private, offline, zero-latency AI — perfect for testing, education, and privacy-sensitive applications.',
+  },
 };
 
 export default function NodeTooltip({ nodeType, compact = false }: { nodeType: string; compact?: boolean }) {

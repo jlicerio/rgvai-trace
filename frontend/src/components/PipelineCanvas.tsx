@@ -25,6 +25,8 @@ import ThreadNode from './nodes/ThreadNode';
 import SkillNode from './nodes/SkillNode';
 import CodeSandboxNode from './nodes/CodeSandboxNode';
 import SubagentNode from './nodes/SubagentNode';
+import TTSNode from './nodes/TTSNode';
+import LocalModelNode from './nodes/LocalModelNode';
 
 const nodeTypes = {
   provider: ProviderNode,
@@ -40,6 +42,8 @@ const nodeTypes = {
   skill: SkillNode,
   subagent: SubagentNode,
   code_sandbox: CodeSandboxNode,
+  tts: TTSNode,
+  local_model: LocalModelNode,
 };
 
 interface PipelineCanvasProps {

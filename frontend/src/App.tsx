@@ -36,6 +36,8 @@ import {
   Zap,
   Bot,
   Code2,
+  Volume2,
+  Cpu,
 } from 'lucide-react';
 import PipelineCanvas from './components/PipelineCanvas';
 import PlayButton from './components/PlayButton';
@@ -65,6 +67,8 @@ const SIDEBAR_ITEMS: { type: NodeType; label: string; icon: React.ReactNode; ord
   { type: 'thread', label: 'Thread', icon: <GitBranch size={14} />, order: 'flow' },
   { type: 'skill', label: 'Env Skills', icon: <Terminal size={14} />, order: 'tool' },
   { type: 'subagent', label: 'Subagent', icon: <Bot size={14} />, order: 'tool' },
+  { type: 'tts', label: 'TTS', icon: <Volume2 size={14} />, order: 'last' },
+  { type: 'local_model', label: 'Local Model', icon: <Cpu size={14} />, order: 'tool' },
   { type: 'code_sandbox', label: 'Code', icon: <Code2 size={14} />, order: 'tool' },
   { type: 'mcp', label: 'MCP', icon: <Wrench size={14} />, order: 'tool' },
   { type: 'registry', label: 'Registry', icon: <FileJson size={14} />, order: 'tool' },
@@ -173,6 +177,34 @@ function getDefaultData(type: NodeType) {
           files: {
             'main.py': '# Write Python code here\nprint("Hello, Trace!")',
           },
+        },
+      };
+    case 'tts':
+      return {
+        label: 'TTS',
+        type: 'tts',
+        config: {
+          label: 'TTS',
+          text: '',
+          enabled: true,
+          voice: 'default',
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+          autoSpeak: true,
+        },
+      };
+    case 'local_model':
+      return {
+        label: 'Local Model',
+        type: 'local_model',
+        config: {
+          label: 'Local Model',
+          modelId: '',
+          systemPrompt: 'You are a helpful AI assistant.',
+          temperature: 0.7,
+          maxTokens: 2048,
+          prompt: '',
         },
       };
   }

@@ -740,5 +740,118 @@ export const LESSONS: Lesson[] = [
         ]
       }
     }
+  },
+  {
+    id: 'lesson-13-tts',
+    phase: 5,
+    title: 'Text-to-Speech Output',
+    description: 'Unlock TTS. Connect a TTS node after Chat to hear LLM responses spoken aloud via Web Speech API.',
+    difficulty: 'Beginner',
+    initialState: {
+      nodes: [
+        {
+          id: 'provider-1',
+          type: 'provider',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Demo Provider',
+            type: 'provider',
+            config: { label: 'Demo Provider', endpoint: 'sandbox', model: 'mock-gpt-4o', apiKey: 'demo-key' }
+          }
+        },
+        {
+          id: 'chat-1',
+          type: 'chat',
+          position: { x: 300, y: 100 },
+          data: {
+            label: 'Speak Chat',
+            type: 'chat',
+            config: { label: 'Speak Chat', systemPrompt: 'You are a helpful assistant.', messages: [{ role: 'user', content: 'Tell me a short fun fact about space.' }] }
+          }
+        },
+        {
+          id: 'observer-1',
+          type: 'observer',
+          position: { x: 580, y: 200 },
+          data: {
+            label: 'Observer',
+            type: 'observer',
+            config: { label: 'Observer', captured: [] }
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'provider-1', target: 'chat-1' },
+        { id: 'e2', source: 'chat-1', target: 'observer-1' }
+      ]
+    },
+    objectives: [
+      { id: 'has-tts', text: 'Add a TTS Node to the canvas.', type: 'node_exists', targetType: 'tts' },
+      { id: 'connect-tts', text: 'Connect TTS Node after Chat Node.', type: 'edge_exists', sourceType: 'chat', targetType: 'tts' },
+      { id: 'run-success', text: 'Run the pipeline with speech output.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag a TTS node onto the canvas and position it after the Chat node.',
+      'Connect the Chat output to the TTS input so the response text flows to the speech synthesizer.',
+      'Press Run — the Chat response will be spoken aloud using your browser speech synthesis.'
+    ],
+    sandboxData: {
+      expectedInput: 'speech output',
+      mockResponse: {
+        status: 'speech_ready',
+        voice: 'default',
+        rate: 1.0,
+        pitch: 1.0,
+        text: 'Did you know that a day on Venus is longer than a year on Venus?',
+        note: 'Speech synthesis runs in-browser via Web Speech API.'
+      }
+    }
+  },
+  {
+    id: 'lesson-14-local-model',
+    phase: 5,
+    title: 'Local LLM via WebGPU',
+    description: 'Unlock Local Model. Run a small LLM directly in your browser using WebGPU acceleration — no server needed.',
+    difficulty: 'Advanced',
+    initialState: {
+      nodes: [
+        {
+          id: 'local-1',
+          type: 'local_model',
+          position: { x: 200, y: 150 },
+          data: {
+            label: 'Local LLM',
+            type: 'local_model',
+            config: {
+              label: 'Local LLM',
+              modelId: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+              systemPrompt: 'You are a helpful AI assistant.',
+              temperature: 0.7,
+              maxTokens: 2048,
+              prompt: 'What is 2+2?'
+            }
+          }
+        }
+      ],
+      edges: []
+    },
+    objectives: [
+      { id: 'has-local', text: 'Add a Local Model Node to the canvas.', type: 'node_exists', targetType: 'local_model' },
+      { id: 'run-success', text: 'Generate a response from the local model.', type: 'execution_completed' }
+    ],
+    hints: [
+      'Drag a Local Model node onto the canvas.',
+      'Select a model from the dropdown (Qwen 0.5B is smallest/fastest).',
+      'Click "Load Model" — the model downloads via WebGPU (400MB - 2.5GB).',
+      'Once loaded, type a prompt and click Generate to run inference locally in your browser.'
+    ],
+    sandboxData: {
+      expectedInput: 'local inference',
+      mockResponse: {
+        status: 'model_configured',
+        modelId: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+        note: 'Model runs in-browser via WebLLM (WebGPU).'
+      }
+    }
   }
 ];
