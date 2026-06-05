@@ -742,7 +742,47 @@ function AppInner() {
         if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
         messages.push({ role: 'user', content: userMessage });
 
-        const body = { model, messages, temperature: chatConfig.temperature ?? 0.7 };
+        // Scan for Browser/Search nodes and add them as callable tools
+        const hasBrowser = nodes.some(n => (n.data as any)?.type === 'browser');
+        const hasSearch = nodes.some(n => (n.data as any)?.type === 'search');
+        const tools: any[] = [];
+        if (hasBrowser) {
+          tools.push({
+            type: 'function',
+            function: {
+              name: 'browser_fetch',
+              description: 'Fetch a web page and extract its text content. Use this to read web pages, documentation, or any online content.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string', description: 'The full URL to fetch' },
+                  render_js: { type: 'boolean', description: 'Render JavaScript', default: false },
+                },
+                required: ['url'],
+              },
+            },
+          });
+        }
+        if (hasSearch) {
+          tools.push({
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web using DuckDuckGo. Get current information on any topic.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  query: { type: 'string', description: 'The search query string' },
+                  count: { type: 'integer', description: 'Number of results to return (1-20)', default: 5 },
+                },
+                required: ['query'],
+              },
+            },
+          });
+        }
+
+        const body: Record<string, any> = { model, messages, temperature: chatConfig.temperature ?? 0.7 };
+        if (tools.length > 0) body.tools = tools;
         const url = `${endpoint}/chat/completions`;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (apiKey && !endpoint.includes('localhost')) headers['Authorization'] = `Bearer ${apiKey}`;
@@ -757,13 +797,56 @@ function AppInner() {
           const content = data?.choices?.[0]?.message?.content || JSON.stringify(data);
           const toolCalls = data?.choices?.[0]?.message?.tool_calls;
 
+          // Handle tool-calling loop for local endpoint
+          let finalContent = content;
+          if (toolCalls && toolCalls.length > 0) {
+            // Make tool calls locally and send results back to LLM
+            for (const tc of toolCalls) {
+              const funcName = tc.function?.name || '';
+              let args: any = {};
+              try { args = JSON.parse(tc.function?.arguments || '{}'); } catch {}
+              let toolResult = '';
+              if (funcName === 'browser_fetch' && args.url) {
+                try {
+                  const r = await fetch('/api/browser/fetch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: args.url, render_js: args.render_js || false }),
+                  });
+                  toolResult = JSON.stringify(await r.json());
+                } catch (e: any) { toolResult = JSON.stringify({ error: String(e) }); }
+              } else if (funcName === 'web_search' && args.query) {
+                try {
+                  const r = await fetch('/api/search', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: args.query, count: args.count || 5 }),
+                  });
+                  toolResult = JSON.stringify(await r.json());
+                } catch (e: any) { toolResult = JSON.stringify({ error: String(e) }); }
+              } else {
+                toolResult = JSON.stringify({ error: `Unknown tool or missing arguments: ${funcName}` });
+              }
+              body.messages.push({
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: tc.id, type: 'function', function: { name: funcName, arguments: tc.function?.arguments } }],
+              });
+              body.messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult });
+            }
+            // Re-call LLM with tool results
+            const res2 = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+            if (res2.ok) {
+              const data2 = await res2.json();
+              finalContent = data2?.choices?.[0]?.message?.content || JSON.stringify(data2);
+            }
+          }
+
           // Build curl display
           const curlLine = `curl -s '${url}' -H 'Content-Type: application/json' -d '${JSON.stringify(body)}'`;
 
           return [{
             id: `chat-${Date.now()}`,
             role: 'assistant',
-            content,
+            content: finalContent,
             toolCalls: toolCalls?.map((tc: any) => ({
               name: tc.function?.name || tc.name,
               arguments: JSON.parse(tc.function?.arguments || '{}'),
