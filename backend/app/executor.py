@@ -1568,6 +1568,7 @@ def _handle_tts(
     frontend can call the Web Speech API to speak it.
     """
     config = node.data.config
+    engine = config.get("engine", "webspeech")
     voice = config.get("voice", "default")
     rate = config.get("rate", 1.0)
     pitch = config.get("pitch", 1.0)

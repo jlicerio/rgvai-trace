@@ -477,29 +477,32 @@ function SubagentContent() {
 function TTSContent() {
   return (
     <div className="space-y-4">
-      <WhatItIs text="The TTS (Text-to-Speech) node speaks text aloud using your browser&rsquo;s built-in speech synthesis. Connect it after a Chat node to hear the LLM&rsquo;s responses, or type text directly to preview any voice. No API keys or external services needed — everything runs locally in your browser via the Web Speech API." />
+      <WhatItIs text="The TTS (Text-to-Speech) node speaks text aloud. It supports two engines: the browser-native Web Speech API (OS voices, instant, no downloads) and WebGPU Neural SpeechT5 (downloads a ~300MB model once, then generates natural-sounding speech on your GPU). No API keys or external services needed for either." />
       <KeyConcepts rows={[
-        { concept: 'Web Speech API', definition: 'Browser-native speech synthesis — works offline, no API keys needed' },
-        { concept: 'Voice Selection', definition: 'Choose from your system&rsquo;s installed voices (varies by OS and browser)' },
-        { concept: 'Rate & Pitch', definition: 'Control how fast (0.5x-2x) and how high/low (0.5-2.0) the voice sounds' },
-        { concept: 'Auto-speak', definition: 'When enabled, the TTS node automatically speaks Chat responses during pipeline execution' },
-        { concept: 'Pipeline & Standalone', definition: 'Works as a downstream node from Chat, or standalone with typed text' },
+        { concept: 'Web Speech API', definition: 'Browser-native speech synthesis — works offline, no downloads, OS voices' },
+        { concept: 'WebGPU Neural TTS', definition: 'SpeechT5 model via Transformers.js — natural human-like voice, runs on GPU' },
+        { concept: 'Engine Switch', definition: 'Toggle between Web Speech (instant) and WebGPU (higher quality) modes' },
+        { concept: 'Voice Selection', definition: 'Web Speech: system voices. WebGPU: 6 speaker embeddings (male/female)' },
+        { concept: 'Rate & Pitch', definition: 'Web Speech: configurable. WebGPU: uses model default speed' },
+        { concept: 'Auto-speak', definition: 'When enabled, automatically speaks Chat responses during pipeline execution' },
       ]} />
       <HowItWorks paragraphs={[
-        'When connected downstream of a Chat node, the TTS node receives the LLM response text during pipeline execution. If auto-speak is enabled, the frontend automatically calls the Web Speech API with your configured voice, rate, and pitch settings — the response is spoken aloud immediately.',
-        'In standalone mode, you can type any text and click the Test button to preview how it sounds with your chosen voice settings. This is useful for testing voices, adjusting speed, or creating voiceover content.',
-        'The Web Speech API works entirely in your browser with no server-side processing. Every modern desktop and mobile browser supports it, making this the simplest way to add speech output to any pipeline.',
+        'When connected downstream of a Chat node, the TTS node receives the LLM response text during pipeline execution. If auto-speak is enabled, the frontend automatically speaks the response aloud using whichever engine is selected.',
+        'In Web Speech mode, the browser&rsquo;s built-in speechSynthesis API is used — instant, no downloads, supports system voices with rate/pitch/volume controls. Works on every modern browser.',
+        'In WebGPU mode, clicking "Load SpeechT5" downloads a Microsoft SpeechT5 model (~300MB, cached in IndexedDB) and runs neural TTS inference on your GPU. The result is more natural-sounding speech with 6 speaker embeddings to choose from. Requires Chrome 113+ or Edge 113+ with WebGPU support.',
       ]} />
       <ConfigurationFields fields={[
         { field: 'label', type: 'string', default: "'TTS'", description: 'Display label on the canvas' },
         { field: 'text', type: 'string', default: "''", description: 'Text to speak (optional — received from Chat node when connected)' },
-        { field: 'voice', type: 'string', default: "'default'", description: 'Voice name from system speech synthesis' },
-        { field: 'rate', type: 'number', default: '1.0', description: 'Speech rate (0.5 = slow, 1.0 = normal, 2.0 = fast)' },
-        { field: 'pitch', type: 'number', default: '1.0', description: 'Voice pitch (0.5 = low, 1.0 = normal, 2.0 = high)' },
+        { field: 'engine', type: 'string', default: "'webspeech'", description: "TTS engine: 'webspeech' (OS voices) or 'webgpu' (SpeechT5 neural)" },
+        { field: 'voice', type: 'string', default: "'default'", description: 'Web Speech: voice name from system speech synthesis' },
+        { field: 'rate', type: 'number', default: '1.0', description: 'Web Speech: speech rate (0.5 = slow, 1.0 = normal, 2.0 = fast)' },
+        { field: 'pitch', type: 'number', default: '1.0', description: 'Web Speech: voice pitch (0.5 = low, 1.0 = normal, 2.0 = high)' },
         { field: 'autoSpeak', type: 'boolean', default: 'true', description: 'Automatically speak Chat responses during pipeline execution' },
+        { field: 'speakerId', type: 'number', default: '0', description: 'WebGPU: speaker embedding ID (0-5, different male/female voices)' },
       ]} />
-      <ExamplePipeline text="Provider → Chat → TTS → Observer. Chat generates a response, TTS speaks it aloud via Web Speech API." />
-      <ExampleCurl code={`# TTS runs entirely in-browser via the Web Speech API.
+      <ExamplePipeline text="Provider → Chat → TTS → Observer. Chat generates a response, TTS speaks it aloud (Web Speech instantly or WebGPU with higher quality)." />
+      <ExampleCurl code={`# TTS runs entirely in-browser via Web Speech API or WebGPU.
 # No curl equivalent — speech synthesis is client-side only.`} />
     </div>
   );

@@ -187,11 +187,13 @@ function getDefaultData(type: NodeType) {
           label: 'TTS',
           text: '',
           enabled: true,
+          engine: 'webspeech',
           voice: 'default',
           rate: 1.0,
           pitch: 1.0,
           volume: 1.0,
           autoSpeak: true,
+          speakerId: 0,
         },
       };
     case 'local_model':
