@@ -119,7 +119,7 @@ async def execute_pipeline(
     chat_upstream_tools: set[str] = set()
     for node in pipeline.nodes:
         if node.type == NodeType.CHAT:
-            tool_nodes = _find_upstream_tool_nodes(
+            tool_nodes = _find_connected_tool_nodes(
                 node.id, pipeline.edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
             )
             for tn in tool_nodes:
@@ -362,16 +362,23 @@ def _find_mcp_node_for_tool(
     return None
 
 
-def _find_upstream_tool_nodes(
+def _find_connected_tool_nodes(
     node_id: str,
     edges: list[PipelineEdge],
     node_map: dict[str, PipelineNode],
     tool_types: set[NodeType],
 ) -> list[PipelineNode]:
-    """Walk upstream through edges to find nodes of specific tool types (BROWSER, SEARCH)."""
-    reverse_adj: dict[str, list[str]] = {}
+    """Walk ALL graph connections (bidirectional) to find nodes of specific tool types.
+
+    Unlike _find_upstream_mcp_nodes which only walks upstream (parents),
+    this function walks both directions so Browser/Search nodes anywhere
+    in the graph connected to a Chat node register as callable tools.
+    """
+    # Build bidirectional adjacency
+    adj: dict[str, list[str]] = {}
     for edge in edges:
-        reverse_adj.setdefault(edge.target, []).append(edge.source)
+        adj.setdefault(edge.source, []).append(edge.target)
+        adj.setdefault(edge.target, []).append(edge.source)
 
     visited: set[str] = set()
     queue = [node_id]
@@ -385,9 +392,9 @@ def _find_upstream_tool_nodes(
         node = node_map.get(current)
         if node and node.type in tool_types:
             tool_nodes.append(node)
-        for parent in reverse_adj.get(current, []):
-            if parent not in visited:
-                queue.append(parent)
+        for neighbor in adj.get(current, []):
+            if neighbor not in visited:
+                queue.append(neighbor)
 
     return tool_nodes
 
@@ -543,7 +550,7 @@ async def _handle_chat(
     mcp_tools = _collect_mcp_tools(mcp_nodes)
     
     # Find upstream Browser/Search nodes and add them as callable tools too
-    tool_nodes = _find_upstream_tool_nodes(
+    tool_nodes = _find_connected_tool_nodes(
         node.id, edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
     )
     builtin_tools = _collect_builtin_tools(tool_nodes)
