@@ -255,10 +255,10 @@ function AppInner() {
   const [executing, setExecuting] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'nodes' | 'chat'>('chat');
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [resultsOpen, setResultsOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useLocalStorage('trace:sidebar', true);
+  const [resultsOpen, setResultsOpen] = useLocalStorage('trace:results', true);
   const [authOpen, setAuthOpen] = useState(false);
-  const [gamificationEnabled, setGamificationEnabled] = useState(true);
+  const [gamificationEnabled, setGamificationEnabled] = useLocalStorage('trace:gamification', true);
   const [user, setUser] = useState<{ id: number; username: string } | null>(null);
 
   // Stepper state
