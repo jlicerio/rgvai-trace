@@ -1,7 +1,7 @@
 ---
 name: trace
 description: "Trace — visual educational platform for learning LLM tool-use, MCP protocol, memory/context/thread patterns, and agentic systems via a React Flow node-based pipeline builder."
-version: 5.0.0
+version: 5.1.0
 ---
 
 # Trace — Agentic Pipeline Builder
@@ -54,6 +54,7 @@ npm run dev
 | **Memory** | `memory` | Persistent key-value store | `_handle_memory` |
 | **Context** | `context` | Context injection / RAG for prompt grounding | `_handle_context` |
 | **Thread** | `thread` | Parallel/sequential execution branching | `_handle_thread` |
+| **Skill** | `skill` | Environment skill checklist — shell, git, docker, python, etc. | `_handle_skill` |
 | **Observer** | `observer` | Capture I/O, display raw + A2UI-rendered results | `_handle_observer` |
 
 ## Key Implementation Details
@@ -80,8 +81,8 @@ npm run dev
 - **Phased progression**: 5 phases, nodes unlock gradually, objectives-based completion
 - **Badges**: Prompt Engineer, Web Miner, Tool Builder, Flow Orchestrator, Self-Modifier
 - **Sandbox mode**: mock responses for workshop demos without API keys
-- **8 lessons**: from "Hello Agentic Chat" to "Parallel Execution with Threads"
-- **Learn modal**: tabbed reference for all 10 node types with What It Is, Key Concepts, How It Works, Configuration Fields, Example Pipeline, and Generated Curl
+- **9 lessons**: from "Hello Agentic Chat" to "Environment Skills"
+- **Learn modal**: tabbed reference for all 11 node types with What It Is, Key Concepts, How It Works, Configuration Fields, Example Pipeline, and Generated Curl
 - **Workshop curriculum**: 5-phase program in WORKSHOPS.md (~280 lines)
 - **Step-through debugger**: pauses at each node to inspect request/response
 - **Code exporter**: Python (OpenAI SDK), Node.js (fetch), and curl tabs
