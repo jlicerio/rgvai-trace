@@ -2,21 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 
 export type TTSStatus = 'idle' | 'downloading' | 'ready' | 'generating' | 'error';
 
-interface SpeakerEmbedding {
-  name: string;
-  speakerId: number;
-}
-
-// SpeechT5 has 6 default speaker embeddings
-const SPEAKER_EMBEDDINGS: SpeakerEmbedding[] = [
-  { name: 'Default (Female)', speakerId: 0 },
-  { name: 'Speaker 1 (Female)', speakerId: 1 },
-  { name: 'Speaker 2 (Male)', speakerId: 2 },
-  { name: 'Speaker 3 (Female)', speakerId: 3 },
-  { name: 'Speaker 4 (Male)', speakerId: 4 },
-  { name: 'Speaker 5 (Female)', speakerId: 5 },
-];
-
 export function useWebGPUTTS() {
   const [status, setStatus] = useState<TTSStatus>('idle');
   const [progress, setProgress] = useState<string>('');
@@ -32,10 +17,8 @@ export function useWebGPUTTS() {
     setError('');
 
     try {
-      // Dynamic import so the heavy WASM only loads on demand
       const { pipeline } = await import('@xenova/transformers');
-      
-      // Configure to use WebGPU if available
+
       pipelineRef.current = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
         quantized: true,
         progress_callback: (report: any) => {
@@ -62,36 +45,43 @@ export function useWebGPUTTS() {
     }
   }, []);
 
+  const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext();
+    }
+    // Browsers start AudioContext suspended — must resume on user gesture
+    if (audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
   const generate = useCallback(async (
     text: string,
-    speakerId: number = 0,
+    _speakerId: number = 0,
   ): Promise<void> => {
-    if (!pipelineRef.current || status !== 'ready') {
-      throw new Error('TTS model not loaded');
+    const pipe = pipelineRef.current;
+    if (!pipe) {
+      setError('TTS model not loaded. Click Load SpeechT5 first.');
+      return;
     }
 
     setStatus('generating');
     setProgress('Generating speech…');
+    setError('');
 
     try {
-      // Create a speaker embedding tensor
-      const speakerEmbeddings = pipelineRef.current.config?.speaker_embeddings;
-      let speakerEmb: any = null;
-      if (speakerEmbeddings && speakerEmbeddings[speakerId]) {
-        speakerEmb = speakerEmbeddings[speakerId];
+      // Generate audio — no speaker embeddings for now (uses model default)
+      const result = await pipe(text);
+
+      // result = { audio: Float32Array, sampling_rate: number }
+      if (!result?.audio || !result?.sampling_rate) {
+        throw new Error('TTS model returned empty audio');
       }
 
-      const result = await pipelineRef.current(text, {
-        speaker_embeddings: speakerEmb,
-      });
+      // Resume AudioContext (required by browser autoplay policy)
+      const ctx = await ensureAudioContext();
 
-      // result is a { audio: Float32Array, sampling_rate: number }
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-      }
-      const ctx = audioCtxRef.current;
-
-      // Convert float32 audio to playable buffer
       const audioBuffer = ctx.createBuffer(1, result.audio.length, result.sampling_rate);
       audioBuffer.getChannelData(0).set(result.audio);
 
@@ -100,18 +90,14 @@ export function useWebGPUTTS() {
       source.connect(ctx.destination);
       source.start(0);
 
-      // Wait for playback to finish
-      await new Promise((resolve) => {
-        source.onended = resolve;
-      });
-
       setStatus('ready');
       setProgress('Speech complete');
     } catch (e: any) {
       setStatus('error');
       setError(e.message || String(e));
+      setProgress('Generation failed');
     }
-  }, [status]);
+  }, [ensureAudioContext]);
 
   const unload = useCallback(() => {
     pipelineRef.current = null;
@@ -133,6 +119,8 @@ export function useWebGPUTTS() {
     loadModel,
     generate,
     unload,
-    speakerEmbeddings: SPEAKER_EMBEDDINGS,
+    speakerEmbeddings: [
+      { name: 'Default Voice', speakerId: 0 },
+    ],
   };
 }

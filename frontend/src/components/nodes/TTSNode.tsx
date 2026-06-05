@@ -322,18 +322,15 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
             {/* Speaker selector (only when model is ready) */}
             {gpuStatus === 'ready' && (
               <div>
-                <label className="text-gray-500 text-xs font-medium block mb-1 uppercase tracking-wider">Speaker</label>
+                <label className="text-gray-500 text-xs font-medium block mb-1 uppercase tracking-wider">Speaker (experimental)</label>
                 <select
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-100 text-sm focus:outline-none focus:border-gray-500 transition-colors"
                   value={config.speakerId ?? 0}
                   onChange={(e) => updateField('speakerId', parseInt(e.target.value))}
                 >
-                  {speakerEmbeddings.map((s) => (
-                    <option key={s.speakerId} value={s.speakerId}>
-                      {s.name}
-                    </option>
-                  ))}
+                  <option value={0}>Default Voice</option>
                 </select>
+                <p className="text-gray-600 text-[10px] mt-1">Additional speakers load separately (future)</p>
               </div>
             )}
           </>
