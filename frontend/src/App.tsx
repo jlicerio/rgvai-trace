@@ -808,43 +808,42 @@ function AppInner() {
         if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
         messages.push({ role: 'user', content: userMessage });
 
-        // Scan for Browser/Search nodes and add them as callable tools
-        const hasBrowser = nodes.some(n => (n.data as any)?.type === 'browser');
-        const hasSearch = nodes.some(n => (n.data as any)?.type === 'search');
+        // Scan for all tool-capable nodes and add them as callable tools
+        const toolNodeTypes: Record<string, { name: string; description: string; parameters: any }[]> = {
+          browser: [{ name: 'browser_fetch', description: 'Fetch a web page and extract its text content.', parameters: { url: { type: 'string' }, render_js: { type: 'boolean' } }, required: ['url'] }],
+          search: [{ name: 'web_search', description: 'Search the web using DuckDuckGo.', parameters: { query: { type: 'string' }, count: { type: 'integer' } }, required: ['query'] }],
+          code_sandbox: [{ name: 'execute_code', description: 'Write and execute Python or JavaScript code.', parameters: { code: { type: 'string' }, language: { type: 'string', enum: ['python', 'javascript'] }, description: { type: 'string' } }, required: ['code'] }],
+          memory: [
+            { name: 'memory_store', description: 'Store a value in memory.', parameters: { key: { type: 'string' }, value: { type: 'string' }, namespace: { type: 'string' } }, required: ['key', 'value'] },
+            { name: 'memory_retrieve', description: 'Retrieve a stored value from memory.', parameters: { key: { type: 'string' }, namespace: { type: 'string' } }, required: ['key'] },
+          ],
+          skill: [{ name: 'run_skill', description: 'Execute a system command on the server.', parameters: { command: { type: 'string' }, description: { type: 'string' } }, required: ['command'] }],
+          registry: [{ name: 'registry_call', description: 'Call a registered MCP tool from the registry.', parameters: { tool: { type: 'string' }, arguments: { type: 'object' } }, required: ['tool'] }],
+          subagent: [{ name: 'delegate_task', description: 'Delegate a task to a subagent with a specific role.', parameters: { task: { type: 'string' }, role: { type: 'string' }, max_iterations: { type: 'integer' } }, required: ['task', 'role'] }],
+        };
         const tools: any[] = [];
-        if (hasBrowser) {
-          tools.push({
-            type: 'function',
-            function: {
-              name: 'browser_fetch',
-              description: 'Fetch a web page and extract its text content. Use this to read web pages, documentation, or any online content.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  url: { type: 'string', description: 'The full URL to fetch' },
-                  render_js: { type: 'boolean', description: 'Render JavaScript', default: false },
+        const seen = new Set<string>();
+        for (const node of nodes) {
+          const nodeType = (node.data as any)?.type as string;
+          const defs = toolNodeTypes[nodeType];
+          if (defs) {
+            for (const def of defs) {
+              if (seen.has(def.name)) continue;
+              seen.add(def.name);
+              tools.push({
+                type: 'function',
+                function: {
+                  name: def.name,
+                  description: def.description,
+                  parameters: {
+                    type: 'object',
+                    properties: def.parameters,
+                    required: def.required || [],
+                  },
                 },
-                required: ['url'],
-              },
-            },
-          });
-        }
-        if (hasSearch) {
-          tools.push({
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web using DuckDuckGo. Get current information on any topic.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  query: { type: 'string', description: 'The search query string' },
-                  count: { type: 'integer', description: 'Number of results to return (1-20)', default: 5 },
-                },
-                required: ['query'],
-              },
-            },
-          });
+              });
+            }
+          }
         }
 
         const body: Record<string, any> = { model, messages, temperature: chatConfig.temperature ?? 0.7 };
@@ -885,6 +884,34 @@ function AppInner() {
                   const r = await fetch('/api/search', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: args.query, count: args.count || 5 }),
+                  });
+                  toolResult = JSON.stringify(await r.json());
+                } catch (e: any) { toolResult = JSON.stringify({ error: String(e) }); }
+              } else if (funcName === 'execute_code') {
+                toolResult = JSON.stringify({
+                  status: 'code_prepared',
+                  code: args.code || '',
+                  language: args.language || 'python',
+                  description: args.description || '',
+                  note: 'Open the Code Sandbox workspace to review and run this code.',
+                });
+              } else if (funcName === 'memory_store' && args.key) {
+                try {
+                  localStorage.setItem(`trace:memory:${args.key}`, args.value || '');
+                  toolResult = JSON.stringify({ status: 'stored', key: args.key });
+                } catch (e: any) { toolResult = JSON.stringify({ error: String(e) }); }
+              } else if (funcName === 'memory_retrieve' && args.key) {
+                const val = localStorage.getItem(`trace:memory:${args.key}`);
+                if (val !== null) {
+                  toolResult = JSON.stringify({ status: 'retrieved', key: args.key, value: val });
+                } else {
+                  toolResult = JSON.stringify({ error: `Key '${args.key}' not found in memory` });
+                }
+              } else if (funcName === 'registry_call' && args.tool) {
+                try {
+                  const r = await fetch('/api/registry/call', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tool: args.tool, arguments: args.arguments || {} }),
                   });
                   toolResult = JSON.stringify(await r.json());
                 } catch (e: any) { toolResult = JSON.stringify({ error: String(e) }); }

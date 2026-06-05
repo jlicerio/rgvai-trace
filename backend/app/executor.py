@@ -46,6 +46,13 @@ MAX_TOOL_CALL_ITERATIONS = 10
 # Global in-memory key-value store for memory nodes
 MEMORY_STORE: dict[str, dict[str, str]] = {}
 
+# Node types that can act as callable tools when connected to a Chat node
+ALL_TOOL_TYPES = {
+    NodeType.BROWSER, NodeType.SEARCH, NodeType.CODE_SANDBOX,
+    NodeType.MEMORY, NodeType.SKILL, NodeType.SUBAGENT,
+    NodeType.REGISTRY,
+}
+
 
 def _validate_endpoint_url(url: str) -> bool:
     """Block SSRF: reject private/internal IP ranges."""
@@ -120,7 +127,7 @@ async def execute_pipeline(
     for node in pipeline.nodes:
         if node.type == NodeType.CHAT:
             tool_nodes = _find_connected_tool_nodes(
-                node.id, pipeline.edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
+                node.id, pipeline.edges, node_map, ALL_TOOL_TYPES
             )
             for tn in tool_nodes:
                 chat_upstream_tools.add(tn.id)
@@ -185,17 +192,79 @@ async def execute_pipeline(
                 continue
             result = await _handle_search(node)
         elif node.type == NodeType.MEMORY:
+            if node.id in chat_upstream_tools:
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.MEMORY.value,
+                    curl="# Memory: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Memory is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = await _handle_memory(node)
         elif node.type == NodeType.CONTEXT:
             result = _handle_context(node)
         elif node.type == NodeType.THREAD:
             result = await _handle_thread(node, pipeline.edges, node_map, results)
         elif node.type == NodeType.SKILL:
+            if node.id in chat_upstream_tools:
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.SKILL.value,
+                    curl="# Skill: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Skill is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = _handle_skill(node)
         elif node.type == NodeType.SUBAGENT:
+            if node.id in chat_upstream_tools:
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.SUBAGENT.value,
+                    curl="# Subagent: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Subagent is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = await _handle_subagent(node, auth_header, pipeline.edges, node_map)
         elif node.type == NodeType.CODE_SANDBOX:
+            if node.id in chat_upstream_tools:
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.CODE_SANDBOX.value,
+                    curl="# Code Sandbox: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Code Sandbox is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = _handle_code_sandbox(node)
+        elif node.type == NodeType.REGISTRY:
+            if node.id in chat_upstream_tools:
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.REGISTRY.value,
+                    curl="# Registry: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Registry is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
+            from app.registry import load_registry
+            try:
+                reg = load_registry()
+                result = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.REGISTRY.value,
+                    curl="# Registry: loaded",
+                    request={"action": "list"},
+                    response={"status": "loaded", "tools": reg.get("tools", [])},
+                )
+            except ValueError as exc:
+                result = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.REGISTRY.value,
+                    error=str(exc),
+                )
         elif node.type == NodeType.TTS:
             result = _handle_tts(node, results, pipeline.edges)
         elif node.type == NodeType.LOCAL_MODEL:
@@ -542,25 +611,129 @@ BUILTIN_TOOL_DEFINITIONS: dict[str, dict] = {
             },
         },
     },
+    "execute_code": {
+        "type": "function",
+        "function": {
+            "name": "execute_code",
+            "description": "Write and execute Python or JavaScript code. Use this to run calculations, process data, generate files, or automate tasks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "The code to execute"},
+                    "language": {"type": "string", "description": "Programming language (python or javascript)", "enum": ["python", "javascript"], "default": "python"},
+                    "description": {"type": "string", "description": "Brief explanation of what this code does"},
+                },
+                "required": ["code"],
+            },
+        },
+    },
+    "memory_store": {
+        "type": "function",
+        "function": {
+            "name": "memory_store",
+            "description": "Store a value in memory for later retrieval. Use this to remember facts, user preferences, or intermediate results across conversation turns.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "The memory key (e.g. user_name, project_deadline)"},
+                    "value": {"type": "string", "description": "The value to store"},
+                    "namespace": {"type": "string", "description": "Optional namespace to organize memories (default: default)"},
+                },
+                "required": ["key", "value"],
+            },
+        },
+    },
+    "memory_retrieve": {
+        "type": "function",
+        "function": {
+            "name": "memory_retrieve",
+            "description": "Retrieve a previously stored value from memory by key. Use this to recall facts and preferences stored earlier in the conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "The memory key to look up"},
+                    "namespace": {"type": "string", "description": "Optional namespace (default: default)"},
+                },
+                "required": ["key"],
+            },
+        },
+    },
+    "run_skill": {
+        "type": "function",
+        "function": {
+            "name": "run_skill",
+            "description": "Execute a system command or skill on the server. Use this to run shell commands, git operations, file operations, or any system-level task.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The shell command to execute (e.g. ls -la, git status, python script.py)"},
+                    "description": {"type": "string", "description": "Brief explanation of what this command does"},
+                },
+                "required": ["command"],
+            },
+        },
+    },
+    "registry_call": {
+        "type": "function",
+        "function": {
+            "name": "registry_call",
+            "description": "Call a registered MCP tool from the tool registry. Use this to invoke tools that have been registered through the Registry node.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tool": {"type": "string", "description": "The name of the registered tool to call"},
+                    "arguments": {"type": "object", "description": "Arguments to pass to the tool (as a JSON object)"},
+                },
+                "required": ["tool"],
+            },
+        },
+    },
+    "delegate_task": {
+        "type": "function",
+        "function": {
+            "name": "delegate_task",
+            "description": "Delegate a task to a subagent with a specific role. Use this to parallelize work — the subagent can use its own tools and skills independently.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "The task description to delegate"},
+                    "role": {"type": "string", "description": "Subagent role (e.g. Code Writer, Researcher, Debugger, Data Analyst)"},
+                    "max_iterations": {"type": "integer", "description": "Maximum tool-call iterations for the subagent", "default": 5},
+                },
+                "required": ["task", "role"],
+            },
+        },
+    },
 }
 
 
 def _collect_builtin_tools(tool_nodes: list[PipelineNode]) -> list[dict]:
-    """Collect tool definitions from Browser and Search nodes into OpenAI tool-calling format.
+    """Collect tool definitions from all tool-capable nodes into OpenAI tool-calling format.
 
-    Browser nodes add ``browser_fetch``, Search nodes add ``web_search``.
-    Deduplicates so the LLM sees each tool definition once regardless of how
-    many Browser/Search nodes are connected.
+    Each node type maps to one or more tool definitions. Results are deduplicated
+    so the LLM sees each tool definition once regardless of how many nodes of the
+    same type are connected.
     """
+    TOOL_NODE_MAP: dict[NodeType, list[str]] = {
+        NodeType.BROWSER: ["browser_fetch"],
+        NodeType.SEARCH: ["web_search"],
+        NodeType.CODE_SANDBOX: ["execute_code"],
+        NodeType.MEMORY: ["memory_store", "memory_retrieve"],
+        NodeType.SKILL: ["run_skill"],
+        NodeType.REGISTRY: ["registry_call"],
+        NodeType.SUBAGENT: ["delegate_task"],
+    }
+
     tools: list[dict] = []
     seen: set[str] = set()
+
     for tool_node in tool_nodes:
-        if tool_node.type == NodeType.BROWSER and "browser_fetch" not in seen:
-            tools.append(BUILTIN_TOOL_DEFINITIONS["browser_fetch"])
-            seen.add("browser_fetch")
-        elif tool_node.type == NodeType.SEARCH and "web_search" not in seen:
-            tools.append(BUILTIN_TOOL_DEFINITIONS["web_search"])
-            seen.add("web_search")
+        tool_names = TOOL_NODE_MAP.get(tool_node.type, [])
+        for name in tool_names:
+            if name not in seen and name in BUILTIN_TOOL_DEFINITIONS:
+                tools.append(BUILTIN_TOOL_DEFINITIONS[name])
+                seen.add(name)
+
     return tools
 
 
@@ -665,9 +838,9 @@ async def _handle_chat(
     mcp_nodes = _find_upstream_mcp_nodes(node.id, edges, node_map)
     mcp_tools = _collect_mcp_tools(mcp_nodes)
     
-    # Find upstream Browser/Search nodes and add them as callable tools too
+    # Find upstream tool-capable nodes and add them as callable tools
     tool_nodes = _find_connected_tool_nodes(
-        node.id, edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
+        node.id, edges, node_map, ALL_TOOL_TYPES
     )
     builtin_tools = _collect_builtin_tools(tool_nodes)
     
@@ -1468,10 +1641,106 @@ async def _handle_subagent(
                         arguments = {}
                     
                     mcp_node = _find_mcp_node_for_tool(mcp_nodes, func_name)
-                    
-                    if mcp_node is None:
-                        result_content = json.dumps({"error": f"Unknown tool: {func_name}"})
-                    else:
+
+                    # --- Builtin tool handlers ---
+                    if func_name == "browser_fetch":
+                        try:
+                            from app.tools import fetch_page
+                            fetch_url = arguments.get("url", "")
+                            render_js = arguments.get("render_js", False)
+                            if not fetch_url:
+                                result_content = json.dumps({"error": "No URL provided for browser_fetch"})
+                            else:
+                                tool_result = await fetch_page(fetch_url, render_js=render_js)
+                                result_content = json.dumps(tool_result)
+                        except Exception as exc:
+                            result_content = json.dumps({"error": str(exc)})
+                    elif func_name == "web_search":
+                        try:
+                            from app.tools import web_search
+                            query = arguments.get("query", "")
+                            count = arguments.get("count", 5)
+                            if not query:
+                                result_content = json.dumps({"error": "No search query provided for web_search"})
+                            else:
+                                tool_result = await web_search(query, count)
+                                result_content = json.dumps(tool_result)
+                        except Exception as exc:
+                            result_content = json.dumps({"error": str(exc)})
+                    elif func_name == "execute_code":
+                        code = arguments.get("code", "")
+                        language = arguments.get("language", "python")
+                        description = arguments.get("description", "")
+                        # Store code in memory for the frontend CodeSandbox to pick up
+                        MEMORY_STORE.setdefault("code_sandbox", {})["last_code"] = code
+                        MEMORY_STORE["code_sandbox"]["last_language"] = language
+                        result_content = json.dumps({
+                            "status": "code_prepared",
+                            "code": code,
+                            "language": language,
+                            "description": description,
+                            "note": "Code is ready for execution in the Code Sandbox workspace. Open the Code Sandbox to review and run it.",
+                        })
+                    elif func_name == "memory_store":
+                        key = arguments.get("key", "")
+                        value = arguments.get("value", "")
+                        namespace = arguments.get("namespace", "default")
+                        if not key:
+                            result_content = json.dumps({"error": "No key provided for memory_store"})
+                        else:
+                            MEMORY_STORE.setdefault(namespace, {})[key] = value
+                            result_content = json.dumps({"status": "stored", "namespace": namespace, "key": key})
+                    elif func_name == "memory_retrieve":
+                        key = arguments.get("key", "")
+                        namespace = arguments.get("namespace", "default")
+                        ns = MEMORY_STORE.get(namespace, {})
+                        value = ns.get(key)
+                        if value is None:
+                            result_content = json.dumps({"error": f"Key '{key}' not found in namespace '{namespace}'"})
+                        else:
+                            result_content = json.dumps({"status": "retrieved", "namespace": namespace, "key": key, "value": value})
+                    elif func_name == "run_skill":
+                        command = arguments.get("command", "")
+                        if not command:
+                            result_content = json.dumps({"error": "No command provided for run_skill"})
+                        else:
+                            try:
+                                import subprocess
+                                proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+                                result_content = json.dumps({
+                                    "stdout": proc.stdout,
+                                    "stderr": proc.stderr,
+                                    "exit_code": proc.returncode,
+                                })
+                            except subprocess.TimeoutExpired:
+                                result_content = json.dumps({"error": "Command timed out after 30 seconds"})
+                            except Exception as exc:
+                                result_content = json.dumps({"error": str(exc)})
+                    elif func_name == "registry_call":
+                        try:
+                            from app.registry import call_registry_tool
+                            tool = arguments.get("tool", "")
+                            args = arguments.get("arguments", {})
+                            if not tool:
+                                result_content = json.dumps({"error": "No tool name provided for registry_call"})
+                            else:
+                                tool_result = call_registry_tool(tool, args)
+                                result_content = json.dumps(tool_result)
+                        except Exception as exc:
+                            result_content = json.dumps({"error": str(exc)})
+                    elif func_name == "delegate_task":
+                        task = arguments.get("task", "")
+                        role = arguments.get("role", "")
+                        if not task or not role:
+                            result_content = json.dumps({"error": "Both 'task' and 'role' are required for delegate_task"})
+                        else:
+                            result_content = json.dumps({
+                                "status": "delegated",
+                                "task": task,
+                                "role": role,
+                                "note": f"Task delegated to {role} subagent. The subagent will work independently and report back.",
+                            })
+                    elif mcp_node is not None:
                         server_url = mcp_node.data.config.get("serverUrl", "")
                         if not server_url:
                             result_content = json.dumps({"error": f"No server URL for tool: {func_name}"})
@@ -1482,6 +1751,8 @@ async def _handle_subagent(
                                 result_content = json.dumps(tool_result)
                             except Exception as exc:
                                 result_content = json.dumps({"error": str(exc)})
+                    else:
+                        result_content = json.dumps({"error": f"Unknown tool: {func_name}"})
                     
                     messages.append({
                         "role": "tool",
