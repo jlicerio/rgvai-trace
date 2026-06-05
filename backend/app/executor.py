@@ -113,6 +113,18 @@ async def execute_pipeline(
     # Upstream provider context: maps a node ID to its nearest provider node
     provider_cache: dict[str, PipelineNode] = {}
 
+    # Identify Browser/Search nodes upstream of Chat nodes — these are handled
+    # as callable tools within the Chat's tool-calling loop and should NOT
+    # execute standalone.
+    chat_upstream_tools: set[str] = set()
+    for node in pipeline.nodes:
+        if node.type == NodeType.CHAT:
+            tool_nodes = _find_upstream_tool_nodes(
+                node.id, pipeline.edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
+            )
+            for tn in tool_nodes:
+                chat_upstream_tools.add(tn.id)
+
     for node in sorted_nodes:
         if selected_ids and node.id not in selected_ids:
             continue
@@ -149,8 +161,28 @@ async def execute_pipeline(
         elif node.type == NodeType.OBSERVER:
             result = _handle_observer(node, pipeline.edges, node_map, results)
         elif node.type == NodeType.BROWSER:
+            if node.id in chat_upstream_tools:
+                # This Browser node is a callable tool for a Chat node — skip standalone execution
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.BROWSER.value,
+                    curl="# Browser: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Browser is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = await _handle_browser(node)
         elif node.type == NodeType.SEARCH:
+            if node.id in chat_upstream_tools:
+                # This Search node is a callable tool for a Chat node — skip standalone execution
+                results[node.id] = ExecutionStepResult(
+                    stepId=node.id,
+                    nodeType=NodeType.SEARCH.value,
+                    curl="# Search: handled as callable tool in Chat node",
+                    request={"delegated_to_chat": True},
+                    response={"status": "handled_as_tool", "note": "Search is available as a callable tool to the Chat node's LLM"},
+                )
+                continue
             result = await _handle_search(node)
         elif node.type == NodeType.MEMORY:
             result = await _handle_memory(node)
@@ -330,6 +362,89 @@ def _find_mcp_node_for_tool(
     return None
 
 
+def _find_upstream_tool_nodes(
+    node_id: str,
+    edges: list[PipelineEdge],
+    node_map: dict[str, PipelineNode],
+    tool_types: set[NodeType],
+) -> list[PipelineNode]:
+    """Walk upstream through edges to find nodes of specific tool types (BROWSER, SEARCH)."""
+    reverse_adj: dict[str, list[str]] = {}
+    for edge in edges:
+        reverse_adj.setdefault(edge.target, []).append(edge.source)
+
+    visited: set[str] = set()
+    queue = [node_id]
+    tool_nodes: list[PipelineNode] = []
+
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        node = node_map.get(current)
+        if node and node.type in tool_types:
+            tool_nodes.append(node)
+        for parent in reverse_adj.get(current, []):
+            if parent not in visited:
+                queue.append(parent)
+
+    return tool_nodes
+
+
+BUILTIN_TOOL_DEFINITIONS: dict[str, dict] = {
+    "browser_fetch": {
+        "type": "function",
+        "function": {
+            "name": "browser_fetch",
+            "description": "Fetch a web page and extract its text content. Use this to read web pages, documentation, news articles, or any online content. Provide the full URL.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The full URL to fetch (e.g. https://example.com/page)"},
+                    "render_js": {"type": "boolean", "description": "Whether to render JavaScript for modern SPAs", "default": False},
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    "web_search": {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web using DuckDuckGo. Use this to find current information, news, documentation, or data on any topic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query string"},
+                    "count": {"type": "integer", "description": "Number of results to return (1-20)", "default": 5},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+}
+
+
+def _collect_builtin_tools(tool_nodes: list[PipelineNode]) -> list[dict]:
+    """Collect tool definitions from Browser and Search nodes into OpenAI tool-calling format.
+
+    Browser nodes add ``browser_fetch``, Search nodes add ``web_search``.
+    Deduplicates so the LLM sees each tool definition once regardless of how
+    many Browser/Search nodes are connected.
+    """
+    tools: list[dict] = []
+    seen: set[str] = set()
+    for tool_node in tool_nodes:
+        if tool_node.type == NodeType.BROWSER and "browser_fetch" not in seen:
+            tools.append(BUILTIN_TOOL_DEFINITIONS["browser_fetch"])
+            seen.add("browser_fetch")
+        elif tool_node.type == NodeType.SEARCH and "web_search" not in seen:
+            tools.append(BUILTIN_TOOL_DEFINITIONS["web_search"])
+            seen.add("web_search")
+    return tools
+
+
 # ---------------------------------------------------------------------------
 # Node-type handlers
 # ---------------------------------------------------------------------------
@@ -426,8 +541,16 @@ async def _handle_chat(
     # Find upstream MCP tools and include them in the request
     mcp_nodes = _find_upstream_mcp_nodes(node.id, edges, node_map)
     mcp_tools = _collect_mcp_tools(mcp_nodes)
-    if mcp_tools:
-        body["tools"] = mcp_tools
+    
+    # Find upstream Browser/Search nodes and add them as callable tools too
+    tool_nodes = _find_upstream_tool_nodes(
+        node.id, edges, node_map, {NodeType.BROWSER, NodeType.SEARCH}
+    )
+    builtin_tools = _collect_builtin_tools(tool_nodes)
+    
+    all_tools = mcp_tools + builtin_tools
+    if all_tools:
+        body["tools"] = all_tools
 
     # Additional params from config (e.g. response_format, stop, top_p)
     # Note: "tools" and "tool_choice" come from discovered MCP tools above,
@@ -499,11 +622,7 @@ async def _handle_chat(
                     # Find which MCP node provides this tool
                     mcp_node = _find_mcp_node_for_tool(mcp_nodes, func_name)
 
-                    if mcp_node is None:
-                        result_content = json.dumps(
-                            {"error": f"Unknown tool: {func_name}"}
-                        )
-                    else:
+                    if mcp_node is not None:
                         server_url = mcp_node.data.config.get("serverUrl", "")
                         if not server_url:
                             result_content = json.dumps(
@@ -526,6 +645,34 @@ async def _handle_chat(
                                 result_content = json.dumps(
                                     {"error": str(exc)}
                                 )
+                    elif func_name == "browser_fetch":
+                        try:
+                            from app.tools import fetch_page
+                            url = arguments.get("url", "")
+                            render_js = arguments.get("render_js", False)
+                            if not url:
+                                result_content = json.dumps({"error": "No URL provided for browser_fetch"})
+                            else:
+                                tool_result = await fetch_page(url, render_js=render_js)
+                                result_content = json.dumps(tool_result)
+                        except Exception as exc:
+                            result_content = json.dumps({"error": str(exc)})
+                    elif func_name == "web_search":
+                        try:
+                            from app.tools import web_search
+                            query = arguments.get("query", "")
+                            count = arguments.get("count", 5)
+                            if not query:
+                                result_content = json.dumps({"error": "No search query provided for web_search"})
+                            else:
+                                tool_result = await web_search(query, count)
+                                result_content = json.dumps(tool_result)
+                        except Exception as exc:
+                            result_content = json.dumps({"error": str(exc)})
+                    else:
+                        result_content = json.dumps(
+                            {"error": f"Unknown tool: {func_name}"}
+                        )
 
                     # Append the tool result as a new message
                     messages.append({
