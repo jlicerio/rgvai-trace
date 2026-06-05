@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Send, MessageSquare, Trash2 } from 'lucide-react';
+import { Send, MessageSquare, Trash2, Mic, MicOff } from 'lucide-react';
 import ParsedChatOutput from './ParsedChatOutput';
 import type { ParsedMessage } from './ParsedChatOutput';
 import type { Node, Edge } from 'reactflow';
@@ -23,7 +23,29 @@ export default function ChatPanel({ nodes, edges, onExecute, onSpeak }: ChatPane
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [recognitionSupported, setRecognitionSupported] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Detect SpeechRecognition support
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setRecognitionSupported(false);
+    }
+  }, []);
+
+  // Cleanup recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -97,6 +119,67 @@ export default function ChatPanel({ nodes, edges, onExecute, onSpeak }: ChatPane
     setError(null);
   }, []);
 
+  // --- Speech-to-Text ---
+  const startListening = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setRecognitionSupported(false);
+      return;
+    }
+
+    // Cancel any existing recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.abort();
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          setInput((prev) => {
+            const separator = prev.trim() ? ' ' : '';
+            return prev + separator + transcript;
+          });
+        }
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+    setIsListening(true);
+  }, []);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.abort();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  }, []);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, startListening, stopListening]);
+
   const hasProvider = nodes.some((n) => (n.data as any)?.type === 'provider');
 
   return (
@@ -154,15 +237,40 @@ export default function ChatPanel({ nodes, edges, onExecute, onSpeak }: ChatPane
           </p>
         )}
         <div className="flex gap-2">
-          <textarea
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:border-gray-500 transition-colors resize-none"
-            rows={2}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message to send through the pipeline..."
-            disabled={sending || !hasProvider}
-          />
+          <div className="flex-1 relative">
+            <textarea
+              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:border-gray-500 transition-colors resize-none w-full"
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type or speak a message..."
+              disabled={sending || !hasProvider}
+            />
+            {isListening && (
+              <div className="absolute bottom-2 left-3 flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                </span>
+                <span className="text-red-400 text-xs">Listening...</span>
+              </div>
+            )}
+          </div>
+          {recognitionSupported && (
+            <button
+              onClick={toggleListening}
+              disabled={sending || !hasProvider}
+              className={`self-end px-3 py-2 rounded-lg transition-colors ${
+                isListening
+                  ? 'bg-red-800 text-red-200 hover:bg-red-700 animate-pulse'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+              title={isListening ? 'Stop listening' : 'Speak to input'}
+            >
+              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+          )}
           <button
             onClick={handleSend}
             disabled={sending || !input.trim() || !hasProvider}
@@ -173,7 +281,7 @@ export default function ChatPanel({ nodes, edges, onExecute, onSpeak }: ChatPane
           </button>
         </div>
         <p className="text-gray-700 text-[10px] mt-1">
-          Enter to send · Shift+Enter for newline
+          Enter to send · Shift+Enter for newline{recognitionSupported ? ' · Mic for speech input' : ''}
         </p>
       </div>
     </div>
