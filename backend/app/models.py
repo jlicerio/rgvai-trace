@@ -15,6 +15,7 @@ class NodeType(str, Enum):
     THREAD = "thread"
     SKILL = "skill"
     CODE_SANDBOX = "code_sandbox"
+    REGISTRY = "registry"
     SUBAGENT = "subagent"
     TTS = "tts"
     LOCAL_MODEL = "local_model"
