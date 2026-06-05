@@ -5,14 +5,14 @@
 > Design agentic workflows by dragging nodes on a canvas, hit ▶ to execute,
 > and see every curl request that fires under the hood.
 
-[![Deploy Status](https://img.shields.io/badge/status-live-brightgreen)](https://linuxbox.tailfceaca.ts.net/trace/)
+[![Deploy Status](https://img.shields.io/badge/status-live-brightgreen)](https://rgvai.tailfceaca.ts.net/trace/)
 [![Stack](https://img.shields.io/badge/stack-React%20Flow%20%2B%20FastAPI-blue)](https://reactflow.dev)
 
 ---
 
 ## Live Demo
 
-**→ https://linuxbox.tailfceaca.ts.net/trace/**
+**→ https://rgvai.tailfceaca.ts.net/trace/**
 
 No sign-up required for sandbox mode. Register a free account to save pipelines and store API keys.
 

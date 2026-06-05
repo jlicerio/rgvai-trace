@@ -7,7 +7,7 @@
 
 ## Public URL
 
-**https://linuxbox.tailfceaca.ts.net/trace/**
+**https://rgvai.tailfceaca.ts.net/trace/**
 
 No tailnet required. Accessible from any browser, anywhere.
 
@@ -44,10 +44,10 @@ Trace will be available on your tailnet at `http://localhost:8083/trace/`.
 
 | URL | Type | Status |
 |-----|------|--------|
-| `https://linuxbox.tailfceaca.ts.net/trace/` | Host-level funnel | ✅ Public |
-| `https://rgvai.tailfceaca.ts.net/trace/` | Container-level funnel | ⏳ Tailnet-only |
+| `https://rgvai.tailfceaca.ts.net/trace/` | Container-level funnel (trace-ts → nginx) | ✅ Public |
+| `https://linuxbox.tailfceaca.ts.net/trace/` | Host-level funnel → :8083 | ✅ Public (fallback) |
 
-The `linuxbox` funnel is the primary public URL. The `rgvai` container funnel is configured but its DNS record needs admin approval for public resolution.
+The `rgvai` funnel is the primary public URL. DNS now resolves publicly.
 
 ### Tailscale Node
 
@@ -72,7 +72,7 @@ The `linuxbox` funnel is the primary public URL. The `rgvai` container funnel is
 ## Architecture
 
 ```
-Browser ──┬── https://linuxbox.tailfceaca.ts.net/trace/
+Browser ──┬── https://rgvai.tailfceaca.ts.net/trace/
           │
   Tailscale Funnel ─── nginx (:8084) ─── trace (:8083)
                                               │
@@ -90,7 +90,7 @@ Browser ──┬── https://linuxbox.tailfceaca.ts.net/trace/
 
 ## Workshop Setup
 
-1. Open **https://linuxbox.tailfceaca.ts.net/trace/**
+1. Open **https://rgvai.tailfceaca.ts.net/trace/**
 2. Register an account (username + password, no email required)
 3. Start Phase 1: drag a Provider + Chat + Observer node
 4. Connect them and hit ▶ Play
@@ -128,12 +128,12 @@ The SQLite database and Tailscale state live in named volumes and persist across
 ## Troubleshooting
 
 **"Connection refused" from public URL**
-- Verify the linuxbox Funnel is enabled: `sudo tailscale funnel status`
+- Check the rgvai Funnel is enabled: `sudo tailscale funnel status`
 - Check containers are running: `docker compose ps`
 
-**"No public DNS for rgvai.tailfceaca.ts.net"**
-- The `rgvai` node's Funnel needs DNS delegation approval in the Tailscale admin console
-- Workaround: use the `linuxbox` URL instead
+**"Connection refused" from `rgvai.tailfceaca.ts.net`**
+- The `rgvai` node's Funnel may need to be reconfigured
+- Workaround: use the `linuxbox.tailfceaca.ts.net` URL instead
 
 **API key not working in sandbox mode**
 - Sandbox mode doesn't send API calls — it generates curl strings only

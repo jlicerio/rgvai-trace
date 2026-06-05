@@ -3,7 +3,7 @@
 > **The visual playground for learning LLMs, tool calling, and MCP.**
 
 Visual node-based web app to design, test, and "trace" LLM/MCP agentic workflows.
-Deployed on linuxbox (Tailscale) at `linuxbox.tailfceaca.ts.net/trace/`
+Deployed on linuxbox (Tailscale) at `rgvai.tailfceaca.ts.net/trace/`
 
 ## Tech Stack
 

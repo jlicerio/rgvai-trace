@@ -241,7 +241,7 @@ Intentionally miswire two nodes (e.g., connect Observer → Provider creating a 
 ## Instructor Notes
 
 ### Setup Requirements
-- **No install needed** for students — works in any browser at `https://linuxbox.tailfceaca.ts.net/trace/`
+- **No install needed** for students — works in any browser at `https://rgvai.tailfceaca.ts.net/trace/`
 - **Sandbox mode** works without API keys for all phases
 - For Phases 3–5 with live LLMs, students can bring their own API key or use a shared classroom key
 
