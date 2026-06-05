@@ -151,7 +151,7 @@
 [data-theme="light"] .border-gray-600 { border-color: #d4d4d4 !important; }
 
 /* Placeholder */
-[data-theme="light"] .placeholder-gray-600::placeholder { color: #a3a3a3 !important; }
+[data-theme="light"] .placeholder-gray-400::placeholder { color: #737373 !important; }
 
 /* Modals / overlays */
 [data-theme="light"] .bg-black\/60 { background-color: rgba(0, 0, 0, 0.4) !important; }

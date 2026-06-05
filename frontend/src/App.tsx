@@ -24,8 +24,6 @@ import {
   Globe,
   Search as SearchIcon,
   FileJson,
-  Sun,
-  Moon,
   StepForward,
   PanelLeftClose,
   PanelRightClose,
@@ -150,7 +148,6 @@ function AppInner() {
   const [execError, setExecError] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'nodes' | 'chat'>('chat');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
@@ -176,13 +173,9 @@ function AppInner() {
       .catch(() => setAuthOpen(true));
   }, []);
 
-  // Sync theme to document
+  // Grayscale dark mode permanently
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme(t => t === 'dark' ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', 'dark');
   }, []);
 
   const handleAuth = useCallback(() => {
@@ -948,15 +941,6 @@ function AppInner() {
           >
             <Trash2 size={14} />
             Clear
-          </button>
-
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 active:bg-gray-600 transition-colors border border-gray-700"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
 
           {/* Panel toggles */}

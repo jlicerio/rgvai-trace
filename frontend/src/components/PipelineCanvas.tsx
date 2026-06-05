@@ -101,7 +101,7 @@ export default function PipelineCanvas({
           nodeStrokeColor="#6b7280"
           nodeColor="#374151"
           nodeBorderRadius={4}
-          maskColor="rgba(0,0,0,0.6)"
+          maskColor="rgba(255, 255, 255, 0.08)"
           style={{ background: '#111827', border: '1px solid #374151' }}
         />
         {children}

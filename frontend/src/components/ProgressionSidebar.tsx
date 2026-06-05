@@ -41,7 +41,7 @@ export default function ProgressionSidebar({
       {/* Current Rank Badge */}
       <div className="p-4 border-b border-gray-800 bg-gray-950/40 flex flex-col items-center text-center">
         <Award size={36} className="text-gray-400 mb-2 animate-bounce" />
-        <span className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase">Active Achievement</span>
+        <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">Active Achievement</span>
         <h3 className="text-sm font-bold text-gray-200">
           {PHASES.find((p) => p.level === currentPhase)?.title || 'Prompt Engineer'}
         </h3>
@@ -72,7 +72,7 @@ export default function ProgressionSidebar({
               <div key={phase.level} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-400">
                   <span className="flex items-center gap-1">
-                    {!phase.isUnlocked && <Lock size={12} className="text-gray-600" />}
+                    {!phase.isUnlocked && <Lock size={12} className="text-gray-500" />}
                     Phase {phase.level}: {phase.title}
                   </span>
                 </div>
@@ -91,8 +91,8 @@ export default function ProgressionSidebar({
                           isActive
                             ? 'bg-gray-800 text-gray-100 font-medium border border-gray-700'
                             : canSelect
-                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
-                            : 'text-gray-600 cursor-not-allowed'
+                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/85'
+                            : 'text-gray-500 cursor-not-allowed'
                         }`}
                       >
                         <span className="truncate pr-2">{lesson.title}</span>
@@ -177,7 +177,7 @@ export default function ProgressionSidebar({
       <div className="p-4 border-t border-gray-800 bg-gray-950/20">
         <button
           onClick={onResetProgression}
-          className="w-full py-1.5 px-3 rounded text-[11px] font-medium text-red-400 border border-red-950 bg-red-950/10 hover:bg-red-950/30 hover:border-red-900 transition-colors"
+          className="w-full py-1.5 px-3 rounded text-[11px] font-medium text-gray-400 border border-gray-700 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 transition-colors"
         >
           Reset Curriculum Progress
         </button>

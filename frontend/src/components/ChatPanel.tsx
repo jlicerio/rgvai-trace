@@ -137,7 +137,7 @@ export default function ChatPanel({ nodes, edges, onExecute }: ChatPanelProps) {
         )}
         <div className="flex gap-2">
           <textarea
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors resize-none"
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:border-gray-500 transition-colors resize-none"
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
