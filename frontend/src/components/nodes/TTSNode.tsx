@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
-import { Volume2, Cpu } from 'lucide-react';
+import { Volume2, Cpu, Server } from 'lucide-react';
 import type { NodeData } from '../../types/pipeline';
 import { useWebGPUTTS } from '../../hooks/useWebGPUTTS';
 import NodeTooltip from './NodeTooltip';
@@ -9,7 +9,7 @@ interface TTSConfig {
   label: string;
   text: string;
   enabled: boolean;
-  engine: 'webspeech' | 'webgpu';
+  engine: 'webspeech' | 'webgpu' | 'backend';
   // Web Speech API settings
   voice: string;
   rate: number;
@@ -18,12 +18,21 @@ interface TTSConfig {
   autoSpeak: boolean;
   // WebGPU Neural TTS settings
   speakerId: number;
+  // Backend Edge TTS settings
+  edgeVoice: string;
+  edgeRate: number;  // -50 to +50, mapped to "-50%" to "+50%"
+  edgePitch: number; // -50 to +50, mapped to "-50%" to "+50%"
 }
 
 interface VoiceOption {
   name: string;
   lang: string;
   default: boolean;
+}
+
+interface EdgeVoice {
+  id: string;
+  label: string;
 }
 
 export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
@@ -45,8 +54,31 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
     loadModel,
     generate: gpuGenerate,
     unload: gpuUnload,
-    speakerEmbeddings,
   } = useWebGPUTTS();
+
+  // Backend Edge TTS state
+  const [edgeVoices, setEdgeVoices] = useState<EdgeVoice[]>([]);
+  const [bePlaying, setBePlaying] = useState(false);
+  const [beError, setBeError] = useState('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Load available Edge TTS voices
+  useEffect(() => {
+    if (engine !== 'backend') return;
+    fetch('/api/tts/voices')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.voices) setEdgeVoices(data.voices);
+      })
+      .catch(() => {
+        // Server may not have edge-tts installed; use defaults
+        setEdgeVoices([
+          { id: 'en-US-AriaNeural', label: 'Aria (US, Female)' },
+          { id: 'en-US-JennyNeural', label: 'Jenny (US, Female)' },
+          { id: 'en-US-GuyNeural', label: 'Guy (US, Male)' },
+        ]);
+      });
+  }, [engine]);
 
   // Initialize Web Speech API
   useEffect(() => {
@@ -112,22 +144,92 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
     await gpuGenerate(config.text, config.speakerId ?? 0);
   }, [config.text, config.speakerId, gpuGenerate]);
 
+  // --- Backend Edge TTS playback ---
+  const speakBackend = useCallback(async () => {
+    if (!config.text) return;
+    setBePlaying(true);
+    setBeError('');
+
+    // Build rate/pitch strings from slider values (percentage)
+    const rateStr = `${config.edgeRate >= 0 ? '+' : ''}${config.edgeRate ?? 0}%`;
+    const pitchStr = `${config.edgePitch >= 0 ? '+' : ''}${config.edgePitch ?? 0}%`;
+    const voiceId = config.edgeVoice || 'en-US-AriaNeural';
+
+    try {
+      const resp = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: config.text,
+          voice: voiceId,
+          rate: rateStr,
+          pitch: pitchStr,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(errData.detail || `TTS request failed (${resp.status})`);
+      }
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Clean up previous audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        setBePlaying(false);
+        URL.revokeObjectURL(url);
+      };
+      audio.onerror = () => {
+        setBePlaying(false);
+        setBeError('Audio playback failed');
+        URL.revokeObjectURL(url);
+      };
+      await audio.play();
+    } catch (e: any) {
+      setBePlaying(false);
+      setBeError(e.message || String(e));
+    }
+  }, [config.text, config.edgeVoice, config.edgeRate, config.edgePitch]);
+
+  const stopBackend = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setBePlaying(false);
+  }, []);
+
   // --- Unified speak ---
   const handleSpeak = useCallback(() => {
     if (engine === 'webspeech') {
       speakWebSpeech();
-    } else {
+    } else if (engine === 'webgpu') {
       speakWebGPU();
+    } else {
+      speakBackend();
     }
-  }, [engine, speakWebSpeech, speakWebGPU]);
+  }, [engine, speakWebSpeech, speakWebGPU, speakBackend]);
 
-  const isPlaying = engine === 'webspeech' ? wsPlaying : gpuStatus === 'generating';
+  const isPlaying =
+    engine === 'webspeech' ? wsPlaying :
+    engine === 'webgpu' ? gpuStatus === 'generating' :
+    bePlaying;
 
   const textPreview = config.text
     ? config.text.length > 80
       ? config.text.slice(0, 80) + '…'
       : config.text
     : '';
+
+  const EngineIcon = engine === 'webgpu' ? Cpu : engine === 'backend' ? Server : Volume2;
 
   return (
     <div
@@ -139,7 +241,7 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-gray-700">
         <div className="flex items-center gap-2">
-          {engine === 'webgpu' ? <Cpu size={16} className="text-gray-300" /> : <Volume2 size={16} className="text-gray-300" />}
+          <EngineIcon size={16} className="text-gray-300" />
           <span className="text-gray-100 font-semibold text-sm tracking-wide uppercase">
             {config.label || 'TTS'}
           </span>
@@ -169,6 +271,7 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
           >
             <option value="webspeech">Web Speech API (OS voices)</option>
             <option value="webgpu">WebGPU Neural (SpeechT5)</option>
+            <option value="backend">Backend Edge TTS (Recommended)</option>
           </select>
         </div>
 
@@ -336,10 +439,97 @@ export default function TTSNode({ id, data, selected }: NodeProps<NodeData>) {
           </>
         )}
 
-        {/* Play button */}
+        {/* ----- Backend Edge TTS controls ----- */}
+        {engine === 'backend' && (
+          <>
+            {/* Voice selector */}
+            <div>
+              <label className="text-gray-500 text-xs font-medium block mb-1 uppercase tracking-wider">Voice</label>
+              <select
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-100 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+                value={config.edgeVoice || 'en-US-AriaNeural'}
+                onChange={(e) => updateField('edgeVoice', e.target.value)}
+              >
+                {edgeVoices.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Rate slider (mapped to edge-tts percentage) */}
+            <div>
+              <label className="text-gray-500 text-xs font-medium block mb-1 uppercase tracking-wider">
+                Speed: {config.edgeRate >= 0 ? '+' : ''}{config.edgeRate ?? 0}%
+              </label>
+              <input
+                type="range"
+                min="-50"
+                max="50"
+                step="5"
+                value={config.edgeRate ?? 0}
+                onChange={(e) => updateField('edgeRate', parseInt(e.target.value))}
+                className="w-full accent-gray-400"
+              />
+              <div className="flex justify-between text-gray-600 text-[10px] mt-0.5">
+                <span>-50%</span>
+                <span>Normal</span>
+                <span>+50%</span>
+              </div>
+            </div>
+
+            {/* Pitch slider (mapped to edge-tts percentage) */}
+            <div>
+              <label className="text-gray-500 text-xs font-medium block mb-1 uppercase tracking-wider">
+                Pitch: {config.edgePitch >= 0 ? '+' : ''}{config.edgePitch ?? 0}%
+              </label>
+              <input
+                type="range"
+                min="-50"
+                max="50"
+                step="5"
+                value={config.edgePitch ?? 0}
+                onChange={(e) => updateField('edgePitch', parseInt(e.target.value))}
+                className="w-full accent-gray-400"
+              />
+              <div className="flex justify-between text-gray-600 text-[10px] mt-0.5">
+                <span>Lower</span>
+                <span>Normal</span>
+                <span>Higher</span>
+              </div>
+            </div>
+
+            {/* Backend error */}
+            {beError && (
+              <div className="text-red-400 text-xs bg-red-900/30 border border-red-800 rounded-lg px-3 py-1.5 break-all max-h-20 overflow-y-auto">
+                {beError}
+              </div>
+            )}
+
+            {/* Auto-speak toggle */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  config.autoSpeak !== false ? 'bg-gray-500' : 'bg-gray-700'
+                }`}
+                onClick={() => updateField('autoSpeak', config.autoSpeak === false)}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    config.autoSpeak !== false ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                  }`}
+                />
+              </div>
+              <span className="text-gray-400 text-xs">Auto-speak</span>
+            </label>
+          </>
+        )}
+
+        {/* Play/Stop button */}
         <div className="flex gap-2">
           <button
-            onClick={isPlaying ? (engine === 'webspeech' ? stopWebSpeech : undefined) : handleSpeak}
+            onClick={isPlaying ? (engine === 'webspeech' ? stopWebSpeech : engine === 'backend' ? stopBackend : undefined) : handleSpeak}
             disabled={!config.text || (engine === 'webgpu' && gpuStatus !== 'ready')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               isPlaying

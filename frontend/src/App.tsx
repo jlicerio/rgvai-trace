@@ -196,6 +196,9 @@ function getDefaultData(type: NodeType) {
           volume: 1.0,
           autoSpeak: true,
           speakerId: 0,
+          edgeVoice: 'en-US-AriaNeural',
+          edgeRate: 0,
+          edgePitch: 0,
         },
       };
     case 'local_model':

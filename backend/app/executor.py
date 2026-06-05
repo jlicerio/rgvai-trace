@@ -1572,6 +1572,9 @@ def _handle_tts(
     voice = config.get("voice", "default")
     rate = config.get("rate", 1.0)
     pitch = config.get("pitch", 1.0)
+    edge_voice = config.get("edgeVoice", "en-US-AriaNeural")
+    edge_rate = config.get("edgeRate", 0)
+    edge_pitch = config.get("edgePitch", 0)
 
     # Find upstream Chat node text
     text = ""

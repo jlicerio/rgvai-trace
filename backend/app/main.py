@@ -98,6 +98,84 @@ async def health():
     return {"status": "ok", "version": "1.0.0"}
 
 
+# ---------------------------------------------------------------------------
+# Edge TTS voices
+# ---------------------------------------------------------------------------
+
+EDGE_TTS_VOICES = {
+    "en-US-AriaNeural": "Aria (US, Female)",
+    "en-US-JennyNeural": "Jenny (US, Female)",
+    "en-US-GuyNeural": "Guy (US, Male)",
+    "en-US-ChristopherNeural": "Christopher (US, Male)",
+    "en-GB-SoniaNeural": "Sonia (UK, Female)",
+    "en-GB-RyanNeural": "Ryan (UK, Male)",
+    "en-AU-NatashaNeural": "Natasha (AU, Female)",
+    "en-IN-NeerjaNeural": "Neerja (IN, Female)",
+}
+
+
+@app.get("/api/tts/voices")
+async def tts_voices():
+    """List available Edge TTS voices."""
+    voices = [{"id": k, "label": v} for k, v in EDGE_TTS_VOICES.items()]
+    return {"voices": voices}
+
+
+@app.post("/api/tts")
+async def tts_generate(raw_request: Request):
+    """Generate speech audio using Edge TTS (Microsoft Edge free neural voices).
+
+    Accepts JSON body:
+      text: str (required)
+      voice: str (default: en-US-AriaNeural)
+      rate: str (default: +0%), e.g. "+20%", "-10%"
+      pitch: str (default: +0Hz), e.g. "+10%", "-5%" or "+20Hz"
+
+    Returns MP3 audio with Content-Type audio/mpeg.
+    """
+    try:
+        body = await raw_request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body must be valid JSON")
+
+    text = body.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="'text' is required")
+
+    voice = body.get("voice", "en-US-AriaNeural")
+    rate = body.get("rate", "+0%")
+    pitch = body.get("pitch", "+0Hz")
+
+    if voice not in EDGE_TTS_VOICES:
+        raise HTTPException(status_code=400, detail=f"Unknown voice '{voice}'. Use GET /api/tts/voices for available voices.")
+
+    try:
+        import edge_tts
+
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+        audio_data = bytearray()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data.extend(chunk["data"])
+
+        if not audio_data:
+            raise HTTPException(status_code=502, detail="Edge TTS returned empty audio")
+
+        from fastapi.responses import Response
+        return Response(
+            content=bytes(audio_data),
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline; filename=tts.mp3",
+                "X-TTS-Voice": voice,
+            },
+        )
+    except ImportError:
+        raise HTTPException(status_code=500, detail="edge-tts package not installed on the server")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"TTS generation failed: {exc}")
+
+
 @app.get("/api/a2ui/hello")
 async def a2ui_hello(name: str = "World"):
     """A2UI demo: returns an embeddable HTML card rendered in a sandboxed iframe."""
