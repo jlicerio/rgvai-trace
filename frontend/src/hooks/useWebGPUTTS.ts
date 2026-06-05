@@ -10,11 +10,31 @@ export function useWebGPUTTS() {
   const pipelineRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  // Defined first so loadModel can depend on it without TDZ issues.
+  const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext();
+    }
+    // Browsers start AudioContext suspended — must resume on user gesture
+    if (audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
   const loadModel = useCallback(async () => {
     setStatus('downloading');
     setProgress('Loading SpeechT5 model…');
     setProgressNum(0);
     setError('');
+
+    // Pre-create AudioContext while user gesture is active, so generate()
+    // doesn't have to create/resume it after an await.
+    try {
+      await ensureAudioContext();
+    } catch {
+      // AudioContext creation failure is non-fatal for model loading
+    }
 
     try {
       const { pipeline } = await import('@xenova/transformers');
@@ -43,18 +63,7 @@ export function useWebGPUTTS() {
       setError(e.message || String(e));
       setProgress('Failed to load TTS model');
     }
-  }, []);
-
-  const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
-    }
-    // Browsers start AudioContext suspended — must resume on user gesture
-    if (audioCtxRef.current.state === 'suspended') {
-      await audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
-  }, []);
+  }, [ensureAudioContext]);
 
   const generate = useCallback(async (
     text: string,
@@ -71,6 +80,11 @@ export function useWebGPUTTS() {
     setError('');
 
     try {
+      // Resume AudioContext BEFORE awaiting model inference.
+      // Chrome blocks AudioContext.resume() after an await — the user gesture
+      // scope expires once control returns from the microtask queue.
+      const ctx = await ensureAudioContext();
+
       // Generate audio — no speaker embeddings for now (uses model default)
       const result = await pipe(text);
 
@@ -78,9 +92,6 @@ export function useWebGPUTTS() {
       if (!result?.audio || !result?.sampling_rate) {
         throw new Error('TTS model returned empty audio');
       }
-
-      // Resume AudioContext (required by browser autoplay policy)
-      const ctx = await ensureAudioContext();
 
       const audioBuffer = ctx.createBuffer(1, result.audio.length, result.sampling_rate);
       audioBuffer.getChannelData(0).set(result.audio);
